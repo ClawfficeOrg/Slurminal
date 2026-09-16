@@ -7,7 +7,7 @@
       "release_version": "0.1.0",
       "next_milestone": "todo-v2.json"
     },
-    "description": "A GPUI terminal emulator built on zoid-slurminal-component. Targets WezTerm-level feature parity with a settings UI over a config file, Nerd Font support, background images, kitty and sixel graphics, a Quake-style drop-down mode, a ratatui console companion, and Figby-driven animation.",
+    "description": "A GPUI terminal emulator built on zoid-slurminal-component. Targets WezTerm-level feature parity with a settings UI over a config file, Nerd Font support, background images, kitty and sixel graphics, a Quake-style drop-down mode, a ratatui console companion with built-in Figby banner and animation support, and packaging for all three platforms.",
     "prerequisites": []
   },
   "agent_config": {
@@ -536,56 +536,107 @@
     },
     {
       "id": "1.6",
-      "title": "Figby animation integration",
-      "goal": "Figby-driven animation across the application. This phase opens by establishing what Figby actually provides, because that was not pinned down in the originating notes.",
+      "title": "Figby integration",
+      "goal": "Build in Figby support. Figby is a Rust port of FIGlet 2.2.5 (the `figby` crate, v6.0.33, BSD-3-Clause, crate-type lib plus cdylib) that grew a full-screen ratatui TUI editor with a drawing palette, layers, a font editor, image import, and an animation timeline with keyframing, tweening, onion skinning, and GIF/APNG/ANSI export. It renders through ratatui, which is the same stack as Slurminal's planned console companion, so it lands there rather than in the GPUI surface. Stated intent: make the TUI flashy and extravagant while the terminal itself is still being built.",
       "prerequisites": [
         "1.5"
       ],
       "tasks": [
         {
           "id": "1.6.1",
-          "title": "Figby reconnaissance and integration decision",
+          "title": "Figby as a dependency and banner rendering",
           "status": "pending",
-          "goal": "Establish what Figby is, what it provides, and where it belongs in Slurminal's stack: a Rust crate, a design tool exporting animation data, a GPUI animation mode, or something else. Determine how it relates to zoid_gpui's existing animation module. Then decide whether Slurminal adopts it, integrates it alongside, or treats it as a later concern — with reasons. Write findings to docs/figby.md. If Figby turns out to be unavailable or unsuitable, say so and stop rather than forcing it.",
+          "goal": "Add the `figby` crate from crates.io as a dependency of the console companion, verify it builds and links on Windows, macOS, and Linux, and use its render API to produce FIGfont banners from Slurminal (startup header, version splash). Use the library rather than shelling out to the binary: the crate exposes render_string over a parsed FIGfont, font loading from a font directory, and an output module with ANSI and plain-text emitters, so there is no reason to spawn a process. Figby is BSD-3-Clause, so ship its attribution in Slurminal's about screen and documentation alongside the other bundled licences — set up that attribution list here so it is not forgotten later. If the crate's Windows build has a problem, document it and say so rather than shipping a shell-out as a silent substitute.",
           "touches": [
-            "docs/figby.md"
+            "crates/slurminal-console/Cargo.toml",
+            "crates/slurminal-console/src/figby/banner.rs",
+            "docs/figby.md",
+            "docs/licenses.md"
           ],
           "success": [
-            "docs/figby.md states what Figby is with a source, not an assumption",
-            "The relationship to zoid_gpui's animation module is settled",
-            "An adopt, integrate-later, or do-not-adopt decision is recorded with reasons",
-            "If adopted, the integration surface in Slurminal is named"
+            "The figby crate builds and links on all three platforms",
+            "A FIGfont banner renders into the console app from a bundled font",
+            "FIGfont and TOIlet font loading works from a font directory",
+            "Figby's BSD-3-Clause attribution ships in the about screen and docs/licenses.md",
+            "docs/figby.md records the pinned version and the chosen API surface"
           ],
-          "tests": "Documentation task.",
+          "tests": "Render a known string with a known font and assert the output lines; build on each platform.",
           "prerequisites": [],
           "complexity": "Medium",
           "agent": "mid_dev_agent",
-          "changelog": "Figby evaluated and its integration path into Slurminal decided",
+          "changelog": "Figby crate integrated for FIGfont banner rendering in the console companion",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         },
         {
           "id": "1.6.2",
-          "title": "Apply animation across the application",
+          "title": "Figby animation playback in the console app",
           "status": "pending",
-          "goal": "Implement the animation the design calls for using whichever approach 1.6.1 chose: panel and tab transitions, settings navigation, the colour scheme preview, and drop-down polish. Every animation must respect the system's reduced-motion preference and the app's own motion setting. Animation is a stated goal, so this is a real feature task, not decoration.",
+          "goal": "Use Figby's animation surface to play animated content in Slurminal's TUI: GIF playback through its fullscreen `--play` path and its animated-GIF import, scaled to the terminal, with loop and interrupt-on-key behaviour. Figby's README notes a current limitation where playback uses an approximate FPS rather than honouring a GIF's real per-frame timing, so verify the actual behaviour rather than trusting the description and record what is true. Playback must not fight the terminal for input: a playing animation is interruptible and restores the previous screen on exit.",
           "touches": [
-            "src/animation/",
-            "src/workspace/",
-            "src/settings/"
+            "crates/slurminal-console/src/figby/playback.rs"
           ],
           "success": [
-            "Transitions are animated where the design calls for it",
-            "Reduced-motion and the app motion setting disable animation everywhere it applies",
-            "No animation causes a visible frame drop during terminal output"
+            "An animated GIF plays fullscreen in the terminal, scaled to fit",
+            "Playback is interruptible by keypress and restores the prior screen",
+            "Actual per-frame timing behaviour is tested and documented, including whether the README's stated limitation still holds",
+            "Playback does not corrupt terminal state on exit"
           ],
-          "tests": "Manual visual check; a benchmark confirming terminal output is unaffected.",
+          "tests": "Manual playback of a real GIF; a test asserting screen restoration after interrupt.",
           "prerequisites": [
             "1.6.1"
           ],
           "complexity": "Medium",
           "agent": "mid_dev_agent",
-          "changelog": "Application-wide animation with reduced-motion support",
+          "changelog": "Figby GIF animation playback in the console app with interruptible fullscreen mode",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.6.3",
+          "title": "Slurminal's own TUI decoration layer",
+          "status": "pending",
+          "goal": "The 'flashy and extravagant' part, in Slurminal rather than in Figby: banner headers, animated status flourishes, and startup art composed from Figby's render output and animation, wired into the console TUI. Keep Figby at arm's length — Slurminal uses its rendering and animation primitives; it does not adopt Figby's TUI editor or its template format as Slurminal's UI. Every decoration respects the terminal's real size, does not break on a narrow terminal, and is off by default for users who want a plain terminal.",
+          "touches": [
+            "crates/slurminal-console/src/ui/decoration.rs",
+            "crates/slurminal-core/src/config/"
+          ],
+          "success": [
+            "Decorative banners and flourishes render in the console TUI",
+            "Decoration degrades cleanly on a narrow or short terminal",
+            "Decoration can be disabled by configuration",
+            "Figby's editor and template format are not adopted as Slurminal's UI"
+          ],
+          "tests": "Render tests at several terminal sizes including a deliberately narrow one.",
+          "prerequisites": [
+            "1.6.2"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "TUI decoration layer built on Figby render and animation primitives",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.6.4",
+          "title": "Upstream contributions to Figby",
+          "status": "pending",
+          "goal": "Slurminal's use of Figby will surface bugs and gaps — the per-frame timing limitation is a known candidate. Fix what is fixable upstream in Figby rather than working around it here, and contribute the fixes back. This task exists so that integration work does not quietly fork behaviour. Record what was sent upstream and what was worked around, with the reason for each.",
+          "touches": [
+            "docs/figby.md"
+          ],
+          "success": [
+            "Bugs found during integration are reported or fixed upstream where practical",
+            "Anything worked around locally is listed with the reason it could not be fixed upstream",
+            "docs/figby.md distinguishes upstream fixes from local workarounds"
+          ],
+          "tests": "Documentation task plus the upstream changes themselves.",
+          "prerequisites": [
+            "1.6.3"
+          ],
+          "complexity": "Low",
+          "agent": "basic_dev_agent",
+          "changelog": "Figby integration fixes contributed upstream with remaining workarounds documented",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         }
@@ -730,7 +781,7 @@
           ],
           "tests": "Run the benchmark suite; confirm CI surfaces the numbers.",
           "prerequisites": [
-            "1.6.2"
+            "1.6.3"
           ],
           "complexity": "Medium",
           "agent": "mid_dev_agent",

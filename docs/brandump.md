@@ -43,17 +43,28 @@ Kitty (graphics protocols).
 - **Kitty image protocol** support.
 - **Sixel** support.
 - **Ratatui-based console app** for Slurminal (TUI companion / headless mode).
-- **Lots of animation — Figby**. Built-in Figby support.
-  (Figby = animation library/mode; confirm its exact role before planning
-  against it.)
+- **Figby support, built in.** Figby is a Rust port of FIGlet 2.2.5 (`figby`
+  crate, v6.0.33, `crate-type = ["cdylib", "lib"]`, on crates.io, BSD-3-Clause,
+  source at `~/git_repos/Figby` in WSL / github.com/DoseOfGose/figby). It is a
+  FIGfont/TOIlet banner renderer that grew a full-screen ratatui TUI editor with
+  drawing tools, layers, a palette editor, a font editor, image import, and an
+  animation timeline with keyframing, tweening, onion skinning, and GIF/APNG/ANSI
+  export. It also has `--play <file.gif>` for fullscreen terminal GIF playback.
+  Intent: use it to make Slurminal's TUI flashy and extravagant while the
+  terminal itself is being built. It renders through ratatui, which is the same
+  stack as the planned console companion, so it fits there naturally. Licence is
+  BSD-3-Clause — permissive, so attribution is all that is required; ship it with
+  the other bundled licences.
 
 ### Open questions to resolve in the Slurminal plan
 
 - Quake mode specifics (the "wait until you hear these ideas" part).
-- What exactly Figby provides and where it sits in the stack.
 - Which WezTerm features are in-scope for v1 vs deferred.
 - Config format + schema + UI binding story.
 - Graphics protocols: which are v1, which are later.
+- How far to take Figby integration: use the crate's render API for banners, or
+  adopt its TUI/animation surface more deeply.
+
 
 ---
 
