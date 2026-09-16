@@ -1,0 +1,744 @@
+{
+  "schema_version": "1.0.0",
+  "project": {
+    "name": "Slurminal",
+    "version": {
+      "milestone": "v1",
+      "release_version": "0.1.0",
+      "next_milestone": "todo-v2.json"
+    },
+    "description": "A GPUI terminal emulator built on zoid-slurminal-component. Targets WezTerm-level feature parity with a settings UI over a config file, Nerd Font support, background images, kitty and sixel graphics, a Quake-style drop-down mode, a ratatui console companion, and Figby-driven animation.",
+    "prerequisites": []
+  },
+  "agent_config": {
+    "tiers": {
+      "basic_dev_agent": {
+        "complexity_range": "Low",
+        "duration_minutes": "5-15"
+      },
+      "mid_dev_agent": {
+        "complexity_range": "Medium",
+        "duration_minutes": "15-45"
+      },
+      "pro_dev_agent": {
+        "complexity_range": "High-Very High",
+        "duration_minutes": "45-120+"
+      }
+    },
+    "required_reading": [
+      "README.md",
+      "docs/todo-v1.json",
+      "docs/wezterm-feature-inventory.md",
+      "docs/quake-mode.md",
+      "docs/brandump.md"
+    ]
+  },
+  "meta": {
+    "origin": "Seeded from Zoid docs/brandump-slurminal-specttyr.md, task 9.4.1.",
+    "blocks_on": "Zoid milestone v11 (zoid-slurminal-component). 1.0.x tasks cannot start until Zoid 9.3.5 lands.",
+    "dependency_note": "The terminal emulator itself is NOT built here. It lives in zoid-slurminal-component. This repo owns the application: windows, tabs, panes, configuration, and the features layered on top."
+  },
+  "phases": [
+    {
+      "id": "1.0",
+      "title": "Application shell",
+      "goal": "Slurminal becomes a real terminal application: it opens, shows a working terminal at the right size, and can be resized, tabbed, and configured through a file. Nothing exotic yet.",
+      "prerequisites": [],
+      "tasks": [
+        {
+          "id": "1.0.1",
+          "title": "Embed the component and render a working terminal",
+          "status": "pending",
+          "goal": "Replace the menubar template's placeholder window content with a real terminal from zoid-slurminal-component. Wire the PTY lifecycle to the window lifecycle so the shell starts with the window and dies with it, and confirm the grid resizes correctly when the window is resized. This is the first integration point with the Zoid milestone and the place to find gaps in the component's published interface.",
+          "touches": [
+            "src/main.rs",
+            "src/ui/zml_layout.rs",
+            "ui/app.json",
+            "Cargo.toml"
+          ],
+          "success": [
+            "The app opens with an interactive shell prompt",
+            "Window resize resizes the terminal grid and the child PTY",
+            "Closing the window does not leave a shell process behind",
+            "Builds and runs on Windows, macOS, and Linux"
+          ],
+          "tests": "Manual: launch, run a command, resize, close. Confirm no orphan processes.",
+          "prerequisites": [],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Slurminal renders a working terminal from zoid-slurminal-component",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.0.2",
+          "title": "Config file load, merge, and hot reload",
+          "status": "pending",
+          "goal": "Define Slurminal's configuration format, load it from the platform config directory, merge it over built-in defaults, and watch it for changes so edits apply without a restart. The format is the contract the settings UI edits, so define it as a typed model with a serialiser rather than parsing into maps. Decide and document the format — TOML is the expected choice — and how unknown keys are handled across versions.",
+          "touches": [
+            "src/config/",
+            "src/main.rs",
+            "docs/config.md"
+          ],
+          "success": [
+            "A config file is loaded and overrides defaults",
+            "Editing the file applies the change without restarting",
+            "A malformed file reports a useful error instead of failing to start",
+            "Unknown keys from a newer version do not break an older build",
+            "The format and its merge rules are documented"
+          ],
+          "tests": "Unit tests for load, merge, and error cases; manual hot-reload test.",
+          "prerequisites": [
+            "1.0.1"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Slurminal configuration file with typed defaults, merge, and hot reload",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.0.3",
+          "title": "Tabs and split panes",
+          "status": "pending",
+          "goal": "Multiple terminal tabs with keyboard and menu navigation, and split panes within a tab with keyboard resizing. Each pane owns its own PTY and terminal instance. Tabs show a title derived from the running process or the shell's reported title. Persist the layout shape so a restart can offer to restore it — actually restoring is 1.0.4.",
+          "touches": [
+            "src/workspace/",
+            "src/ui/",
+            "src/menu_actions.rs"
+          ],
+          "success": [
+            "Tabs can be created, closed, and switched by keyboard and menu",
+            "Panes split horizontally and vertically and resize from the keyboard",
+            "Each pane runs an independent shell",
+            "Tab titles reflect the running program or reported title"
+          ],
+          "tests": "Unit tests for the layout model; manual interaction test on each platform.",
+          "prerequisites": [
+            "1.0.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Terminal tabs and split panes with keyboard and menu navigation",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.0.4",
+          "title": "Session persistence and restore",
+          "status": "pending",
+          "goal": "Save the window layout, tabs, pane splits, and working directories on exit, and restore them on launch. Restoring a pane means opening a new shell in the recorded directory, not resurrecting the process — be explicit about that in the docs so it is not mistaken for tmux-style session persistence. Offer the restore rather than forcing it.",
+          "touches": [
+            "src/workspace/persistence.rs",
+            "src/main.rs",
+            "docs/config.md"
+          ],
+          "success": [
+            "Layout and directories survive a restart",
+            "Restore is offered, not forced",
+            "A corrupt state file falls back to a single default window",
+            "The docs state plainly that processes are not resurrected"
+          ],
+          "tests": "Unit tests for serialisation round-trip; manual restart test.",
+          "prerequisites": [
+            "1.0.3"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Window layout, tabs, and working directories persist across restarts",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.1",
+      "title": "WezTerm parity inventory",
+      "goal": "Replace the blanket 'support everything WezTerm does' goal with an enumerated inventory and a per-item include/defer decision, so the remaining phases are scoped by a document rather than a vibe.",
+      "prerequisites": [
+        "1.0"
+      ],
+      "tasks": [
+        {
+          "id": "1.1.1",
+          "title": "Enumerate the WezTerm feature surface",
+          "status": "pending",
+          "goal": "Read WezTerm's documentation and feature list and write docs/wezterm-feature-inventory.md: every user-visible feature, grouped by area (appearance, input, multiplexing, graphics, multiplexing-adjacent, scripting, remote). For each, mark include-for-v1, include-later, or deliberately-excluded with a one-line reason. This document gates the rest of the milestone, so completeness matters more than speed. Do not evaluate feasibility beyond a first instinct — that is what the per-feature tasks are for.",
+          "touches": [
+            "docs/wezterm-feature-inventory.md"
+          ],
+          "success": [
+            "Every WezTerm feature area has entries, not a summary paragraph",
+            "Each entry is marked include-for-v1, include-later, or excluded with a reason",
+            "Excluded items name the reason (conflicts with our stack, needs a subsystem we lack, out of scope)",
+            "Later phases reference this document instead of restating features"
+          ],
+          "tests": "Documentation task.",
+          "prerequisites": [],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "WezTerm feature inventory with per-feature include/defer decisions",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.1.2",
+          "title": "Scope the v1 feature set from the inventory",
+          "status": "pending",
+          "goal": "Turn the inventory's include-for-v1 markings into concrete phases. Every include-for-v1 item must land in a phase with a task, and every phase must trace back to inventory entries. Record the resulting scope in the plan itself rather than a side document, so the plan and the inventory cannot drift apart.",
+          "touches": [
+            "docs/todo-v1.json",
+            "docs/wezterm-feature-inventory.md"
+          ],
+          "success": [
+            "Every include-for-v1 item maps to at least one task",
+            "No task exists that is not traceable to an inventory entry",
+            "Deferred items are grouped so a later milestone can pick them up whole"
+          ],
+          "tests": "taskerkeeper validate docs/todo-v1.json",
+          "prerequisites": [
+            "1.1.1"
+          ],
+          "complexity": "Low",
+          "agent": "basic_dev_agent",
+          "changelog": "v1 scope derived from the WezTerm inventory and folded into the plan",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.2",
+      "title": "Settings UI",
+      "goal": "Every configuration option is reachable from a settings GUI, and the GUI and the config file stay in sync in both directions. This is a stated differentiator, not a nice-to-have.",
+      "prerequisites": [
+        "1.1"
+      ],
+      "tasks": [
+        {
+          "id": "1.2.1",
+          "title": "Settings window shell and navigation",
+          "status": "pending",
+          "goal": "Build the settings window: a category sidebar and a content pane, following the menubar template's existing settings pattern and the Zoid design system. Categories follow the config model's structure so the mapping stays obvious. Search across settings is part of the shell, not a later addition — a configurable terminal has too many options to browse.",
+          "touches": [
+            "src/settings/window.rs",
+            "src/settings/categories.rs",
+            "src/menu_actions.rs"
+          ],
+          "success": [
+            "Settings opens from the menu and renders categories",
+            "Search filters settings across all categories",
+            "The layout follows the Zoid design system and themes correctly"
+          ],
+          "tests": "#[gpui::test] for navigation state; manual inspection against docs/design.md.",
+          "prerequisites": [
+            "1.0.2"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Settings window with category navigation and cross-category search",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.2.2",
+          "title": "Typed setting controls with two-way config binding",
+          "status": "pending",
+          "goal": "Build the control vocabulary the settings window needs: boolean toggle, enum picker, number field, text field, and colour picker. Each control reads from and writes to the config model, and edits apply live so the terminal re-renders as a setting changes. Writing to the file and watching for external edits must not fight each other — the loop has to settle rather than ping-pong.",
+          "touches": [
+            "src/settings/controls/",
+            "src/config/"
+          ],
+          "success": [
+            "Every control type reads and writes the config model correctly",
+            "Edits apply to the running terminal without a restart",
+            "Editing the file externally and then editing in the UI does not loop or lose changes",
+            "A setting with an invalid value is reported, not silently ignored"
+          ],
+          "tests": "Unit tests per control type; a sync test that edits both sides and asserts convergence.",
+          "prerequisites": [
+            "1.2.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Typed settings controls with live two-way binding to the config file",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.2.3",
+          "title": "Appearance settings: font, colours, background image",
+          "status": "pending",
+          "goal": "The appearance category: font family and size with a font picker, a live preview pane, colour scheme selection and per-colour overrides, cursor style and blink, and the background image controls (path, opacity, blur, fit mode) that the component's theme overrides support. Font picker must show which available faces are Nerd-Font-patched, since that is a setting users get wrong.",
+          "touches": [
+            "src/settings/appearance.rs",
+            "docs/config.md"
+          ],
+          "success": [
+            "Font, colour scheme, cursor, and background image settings all apply live",
+            "The preview reflects changes as they are made",
+            "The font picker indicates Nerd Font coverage",
+            "Every option in this category round-trips through the config file"
+          ],
+          "tests": "Manual walkthrough of each control with the preview visible.",
+          "prerequisites": [
+            "1.2.2"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Appearance settings for font, colours, cursor, and background image",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.3",
+      "title": "Colour schemes and themes",
+      "goal": "Import colour schemes from the ecosystems users already have them in, so switching to Slurminal does not mean re-creating a palette by hand.",
+      "prerequisites": [
+        "1.2"
+      ],
+      "tasks": [
+        {
+          "id": "1.3.1",
+          "title": "Colour scheme import from iTerm2, Windows Terminal, and WezTerm",
+          "status": "pending",
+          "goal": "Parse colour scheme files from the three formats users are most likely to arrive with: iTerm2 .itermcolors plists, Windows Terminal JSON, and WezTerm colour definitions. Normalise them into one internal palette type. Report per-file what could not be mapped rather than silently dropping it.",
+          "touches": [
+            "src/colorscheme/import/",
+            "src/colorscheme/model.rs"
+          ],
+          "success": [
+            "Each format parses into the internal palette type",
+            "Unmappable entries produce a report, not silence",
+            "Round-tripping a scheme through the internal type is lossless for defined fields"
+          ],
+          "tests": "Fixture-based tests with one real scheme file per format.",
+          "prerequisites": [],
+          "parallel_group": "colorschemes",
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Colour scheme import from iTerm2, Windows Terminal, and WezTerm formats",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.3.2",
+          "title": "Colour scheme browser and live preview",
+          "status": "pending",
+          "goal": "A browsable library of imported and built-in schemes with a live preview that shows real terminal output, not colour swatches. Selection applies immediately and can be made per-app or per-profile. Include the ability to derive a light variant from a dark scheme, or state that it is not offered.",
+          "touches": [
+            "src/settings/colorschemes.rs",
+            "src/colorscheme/library.rs"
+          ],
+          "success": [
+            "Schemes are browsable and preview against real terminal output",
+            "Selecting a scheme applies it live",
+            "Schemes can be assigned per profile if profiles exist at this point"
+          ],
+          "tests": "Manual preview walkthrough on each platform.",
+          "prerequisites": [
+            "1.3.1"
+          ],
+          "parallel_group": "colorschemes",
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Colour scheme browser with live preview against real terminal output",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.4",
+      "title": "Graphics protocols",
+      "goal": "Inline images in the terminal: the kitty graphics protocol and sixel. These are separate protocols with separate parsers, so they get separate tasks, and both render through one shared image surface.",
+      "prerequisites": [
+        "1.0"
+      ],
+      "tasks": [
+        {
+          "id": "1.4.1",
+          "title": "Shared inline-image render surface",
+          "status": "pending",
+          "goal": "Build the surface that draws images inside the terminal grid: placement at a cell position, scaling, clipping to the viewport, and correct layering against text and selection. Both graphics protocols feed this surface, so it takes decoded images and placement metadata, not protocol payloads. Scrollback interaction must be decided: images either scroll with their content or are discarded — pick one and document it.",
+          "touches": [
+            "src/graphics/surface.rs",
+            "src/graphics/placement.rs"
+          ],
+          "success": [
+            "An image renders at a grid position and scales correctly",
+            "Images clip to the viewport and layer correctly against text",
+            "Scrollback behaviour for images is defined and implemented consistently"
+          ],
+          "tests": "#[gpui::test] placement math; manual render check.",
+          "prerequisites": [],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Shared inline-image surface for terminal graphics with grid placement and clipping",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.4.2",
+          "title": "Kitty graphics protocol",
+          "status": "pending",
+          "goal": "Implement the kitty graphics protocol: image transmission (direct, file, and shared-memory paths as supported), placement, deletion, and the query responses programs expect. Cover both PNG payloads and raw RGBA. Test against a known program that uses the protocol rather than only synthetic sequences.",
+          "touches": [
+            "src/graphics/kitty.rs"
+          ],
+          "success": [
+            "A real program using the kitty protocol displays images correctly",
+            "Transmission, placement, and deletion all work",
+            "Unsupported sub-features respond in a way the client program handles"
+          ],
+          "tests": "Integration test against a real kitty-protocol program; parsing unit tests.",
+          "prerequisites": [
+            "1.4.1"
+          ],
+          "parallel_group": "graphics",
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Kitty graphics protocol support (transmission, placement, deletion)",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.4.3",
+          "title": "Sixel graphics",
+          "status": "pending",
+          "goal": "Implement sixel: palette handling, raster attributes, and rendering through the shared image surface. Sixel's colour registers and repeat syntax are the parts that get skipped and then break real programs, so cover them properly. Test against a real sixel-producing program.",
+          "touches": [
+            "src/graphics/sixel.rs"
+          ],
+          "success": [
+            "A real sixel program renders correctly",
+            "Palette handling and colour registers work across the full range",
+            "Repeat syntax and raster attributes are handled"
+          ],
+          "tests": "Integration test against a real sixel program; parsing unit tests.",
+          "prerequisites": [
+            "1.4.1"
+          ],
+          "parallel_group": "graphics",
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Sixel graphics support with palette and raster attribute handling",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.5",
+      "title": "Quake-style drop-down mode",
+      "goal": "A hotkey-summoned drop-down terminal with proper multi-monitor behaviour and animation. The brandump deferred the specifics deliberately, so this phase opens with a design document that locks them down before any implementation.",
+      "prerequisites": [
+        "1.0"
+      ],
+      "tasks": [
+        {
+          "id": "1.5.1",
+          "title": "Quake mode design document",
+          "status": "pending",
+          "goal": "Write docs/quake-mode.md and settle the open questions before implementation: summon and dismiss hotkeys and whether they are global or app-local; per-monitor versus single-monitor placement and what happens on a monitor change; slide direction and easing per edge; height or fraction and how it handles a resize; focus and hide-on-blur behaviour; interaction with normal windows and tabs; and whether it is one instance or one per monitor. This document exists because the originating notes deliberately deferred these choices.",
+          "touches": [
+            "docs/quake-mode.md"
+          ],
+          "success": [
+            "Every question above has a written answer, not a maybe",
+            "Platform differences in global hotkey support are stated with a fallback per platform",
+            "The animation specifies duration and easing so 1.5.3 can implement it without re-deciding",
+            "Deferred sub-features are listed as deferred with a reason"
+          ],
+          "tests": "Documentation task.",
+          "prerequisites": [],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Quake mode design document resolving placement, hotkeys, and animation",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.5.2",
+          "title": "Global hotkey and drop-down window",
+          "status": "pending",
+          "goal": "A window that lives off-screen and slides in on the summon hotkey. Global hotkeys are platform-specific — register where supported and provide a documented per-platform fallback where not. Handle the summon-to-visible and dismiss-to-hidden transitions, focus routing on summon, and hide-on-blur per the design doc. This window is separate from the main window and must not interfere with it.",
+          "touches": [
+            "src/quake/hotkey.rs",
+            "src/quake/window.rs",
+            "src/main.rs"
+          ],
+          "success": [
+            "The hotkey summons and dismisses the drop-down on each platform, or the documented fallback works",
+            "Focus lands in the terminal on summon and returns sensibly on dismiss",
+            "Hide-on-blur behaves as the design doc specifies",
+            "The main window is unaffected"
+          ],
+          "tests": "Manual summon and dismiss on each platform; fallback path tested explicitly.",
+          "prerequisites": [
+            "1.5.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Quake drop-down window with global hotkey summon and dismiss",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.5.3",
+          "title": "Multi-monitor placement",
+          "status": "pending",
+          "goal": "Implement the placement model the design doc chose: correct monitor targeting, correct edge per monitor, and defined behaviour when monitors are added, removed, or rearranged while the drop-down exists. Transform coordinates correctly per monitor — scale and offset errors here are the classic failure mode, so test on a mixed-DPI setup if one is available and say so if it is not.",
+          "touches": [
+            "src/quake/placement.rs"
+          ],
+          "success": [
+            "The drop-down appears on the monitor the design doc specifies",
+            "Adding or removing a monitor while running does not strand the window",
+            "Mixed-DPI coordinate handling is correct or the untested case is documented"
+          ],
+          "tests": "Manual test on multi-monitor; unit tests for placement math.",
+          "prerequisites": [
+            "1.5.2"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Quake drop-down multi-monitor placement with hot-plug handling",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.5.4",
+          "title": "Drop-down animation",
+          "status": "pending",
+          "goal": "Animate the summon and dismiss transitions per the design doc using zoid_gpui's animation module. The window position must animate from the actual screen edge, including when the target monitor changed since the last summon. Keep the animation interruptible: a dismiss during a summon must not leave the window in an inconsistent position or state.",
+          "touches": [
+            "src/quake/animation.rs"
+          ],
+          "success": [
+            "Summon and dismiss animate from the correct edge with the specified easing",
+            "Interrupting an in-flight animation settles correctly",
+            "Animation is disabled cleanly when the user turns motion off"
+          ],
+          "tests": "Manual visual check; unit tests for the interpolation state machine.",
+          "prerequisites": [
+            "1.5.3"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Quake drop-down slide animation with interruptible transitions",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.6",
+      "title": "Figby animation integration",
+      "goal": "Figby-driven animation across the application. This phase opens by establishing what Figby actually provides, because that was not pinned down in the originating notes.",
+      "prerequisites": [
+        "1.5"
+      ],
+      "tasks": [
+        {
+          "id": "1.6.1",
+          "title": "Figby reconnaissance and integration decision",
+          "status": "pending",
+          "goal": "Establish what Figby is, what it provides, and where it belongs in Slurminal's stack: a Rust crate, a design tool exporting animation data, a GPUI animation mode, or something else. Determine how it relates to zoid_gpui's existing animation module. Then decide whether Slurminal adopts it, integrates it alongside, or treats it as a later concern — with reasons. Write findings to docs/figby.md. If Figby turns out to be unavailable or unsuitable, say so and stop rather than forcing it.",
+          "touches": [
+            "docs/figby.md"
+          ],
+          "success": [
+            "docs/figby.md states what Figby is with a source, not an assumption",
+            "The relationship to zoid_gpui's animation module is settled",
+            "An adopt, integrate-later, or do-not-adopt decision is recorded with reasons",
+            "If adopted, the integration surface in Slurminal is named"
+          ],
+          "tests": "Documentation task.",
+          "prerequisites": [],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Figby evaluated and its integration path into Slurminal decided",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.6.2",
+          "title": "Apply animation across the application",
+          "status": "pending",
+          "goal": "Implement the animation the design calls for using whichever approach 1.6.1 chose: panel and tab transitions, settings navigation, the colour scheme preview, and drop-down polish. Every animation must respect the system's reduced-motion preference and the app's own motion setting. Animation is a stated goal, so this is a real feature task, not decoration.",
+          "touches": [
+            "src/animation/",
+            "src/workspace/",
+            "src/settings/"
+          ],
+          "success": [
+            "Transitions are animated where the design calls for it",
+            "Reduced-motion and the app motion setting disable animation everywhere it applies",
+            "No animation causes a visible frame drop during terminal output"
+          ],
+          "tests": "Manual visual check; a benchmark confirming terminal output is unaffected.",
+          "prerequisites": [
+            "1.6.1"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Application-wide animation with reduced-motion support",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.7",
+      "title": "Ratatui console companion",
+      "goal": "A ratatui-based console application alongside the GUI, sharing the same configuration and terminal component. Treat it as a real second frontend, not a debugging utility.",
+      "prerequisites": [
+        "1.2"
+      ],
+      "tasks": [
+        {
+          "id": "1.7.1",
+          "title": "Shared core crate extraction",
+          "status": "pending",
+          "goal": "Extract the configuration model, colour schemes, and profile handling into a crate the GUI and the console app both depend on, so they cannot drift. Do this before writing the console app, not after: two frontends reading the same file with two copies of the parser is the failure this prevents. The GUI switches to the shared crate in the same task.",
+          "touches": [
+            "crates/slurminal-core/",
+            "src/",
+            "Cargo.toml"
+          ],
+          "success": [
+            "Configuration, colour schemes, and profiles live in a shared crate",
+            "The GUI depends on it and no longer owns its own copies",
+            "The GUI's behaviour is unchanged after the extraction",
+            "All existing tests still pass"
+          ],
+          "tests": "Full GUI test suite after extraction; manual launch to confirm parity.",
+          "prerequisites": [],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Shared core crate for configuration, colour schemes, and profiles",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.7.2",
+          "title": "Console app with an embedded terminal",
+          "status": "pending",
+          "goal": "Build the ratatui console application: it renders a terminal using zoid-slurminal-component's VT wrapper and state model, drives a PTY, and handles input. Rendering is ratatui's job here, not GPUI's — the component's separation of state from surface is what makes this possible, so if the separation is insufficient that is a component bug to fix upstream, not to work around by reaching into internals.",
+          "touches": [
+            "crates/slurminal-console/",
+            "Cargo.toml"
+          ],
+          "success": [
+            "The console app renders an interactive terminal under ratatui",
+            "Input and resize work",
+            "It reads the same configuration file as the GUI",
+            "Any component changes needed are made upstream in zoid-slurminal-component"
+          ],
+          "tests": "Manual interactive session; a headless render test against a byte fixture.",
+          "prerequisites": [
+            "1.7.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Ratatui console companion with an embedded terminal",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.7.3",
+          "title": "Multiplexing and session detach",
+          "status": "pending",
+          "goal": "Give the console app server and client modes so a session can be detached and reattached — the thing a console companion is actually for. Decide and document the transport and whether this is a new protocol or a reuse of the PTY layer. Security matters here: a listening socket that runs shells is a real exposure, so it authenticates and binds locally by default rather than trusting the network.",
+          "touches": [
+            "crates/slurminal-console/src/session/",
+            "docs/console.md"
+          ],
+          "success": [
+            "A session survives client detach and reattach",
+            "The default binding is local-only and requires authentication to widen",
+            "The transport and its threat model are documented",
+            "Multiple clients can attach to one session or that limitation is stated"
+          ],
+          "tests": "Manual detach and reattach; a security test asserting the default bind and auth requirement.",
+          "prerequisites": [
+            "1.7.2"
+          ],
+          "complexity": "Very High",
+          "agent": "pro_dev_agent",
+          "security_notes": "A remote-attachable shell is the highest-risk feature in this project. Bind local-only by default, require explicit configuration to widen, and authenticate every connection. Document the threat model before implementing.",
+          "changelog": "Console session detach and reattach with a local-only default binding",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "1.8",
+      "title": "Packaging and release",
+      "goal": "Slurminal installs like a real application on all three platforms.",
+      "prerequisites": [
+        "1.6",
+        "1.7"
+      ],
+      "release": {
+        "version": "0.1.0",
+        "notes": "First Slurminal release: a GPUI terminal built on zoid-slurminal-component.",
+        "changelog_entries": []
+      },
+      "tasks": [
+        {
+          "id": "1.8.1",
+          "title": "Icons, bundles, and installers",
+          "status": "pending",
+          "goal": "Ship platform packages: .app bundle and notarisation notes for macOS, MSI or an installer for Windows, and a package for Linux. Reuse Zoid's packaging feature fragments and app-icon set where they fit rather than inventing a second pipeline. The libghostty build dependency has to be handled — either statically linked into the binary or shipped alongside — so a user installs nothing extra.",
+          "touches": [
+            "packaging/",
+            "app-icons/",
+            "Cargo.toml"
+          ],
+          "success": [
+            "An installable package exists for each platform",
+            "Installing requires no separate libghostty installation",
+            "Icons and metadata are correct per platform",
+            "The packaging steps are reproducible from the repository"
+          ],
+          "tests": "Install the built package on each platform and launch it.",
+          "prerequisites": [],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Platform installers for macOS, Windows, and Linux",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "1.8.2",
+          "title": "Performance benchmark and baseline",
+          "status": "pending",
+          "goal": "Establish a repeatable benchmark for throughput-heavy output, interactive latency, and startup time, and record a baseline. A terminal that is slow at dumping a large file is a terminal people stop using, and without a baseline there is no way to know later whether an animation or graphics feature cost throughput. Wire it into CI so a regression is visible.",
+          "touches": [
+            "benches/",
+            ".github/workflows/"
+          ],
+          "success": [
+            "Output throughput, input latency, and startup time are measured",
+            "A baseline is recorded in the repository",
+            "CI reports a regression against the baseline"
+          ],
+          "tests": "Run the benchmark suite; confirm CI surfaces the numbers.",
+          "prerequisites": [
+            "1.6.2"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Terminal performance benchmarks with a recorded baseline and CI regression check",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}
