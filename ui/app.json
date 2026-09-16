@@ -1,0 +1,18 @@
+{
+  "zml_version": "1",
+  "window_title": "Slurminal",
+  "root": {
+    "component_type": "Window",
+    "props": [
+      { "name": "window_kind", "type": "String", "value": "Normal" },
+      { "name": "width", "type": "Number", "value": 720 },
+      { "name": "height", "type": "Number", "value": 480 },
+      { "name": "resizable", "type": "Bool", "value": true }
+    ],
+    "children": [
+      {
+        "component_type": "VStack"
+      }
+    ]
+  }
+}

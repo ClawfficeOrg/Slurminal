@@ -1,0 +1,118 @@
+{
+  "schema_version": "2",
+  "meta": {
+    "name": "Slurminal",
+    "version": "",
+    "authors": []
+  },
+  "template": {
+    "id": "menubar"
+  },
+  "features": {
+    "enabled": [
+      "theme"
+    ]
+  },
+  "theme": {
+    "colors": {
+      "light": {
+        "primary": "#2563eb",
+        "primary_hover": "#1d4ed8",
+        "secondary": "#606a78",
+        "secondary_hover": "#4b5563",
+        "background": "#f6f7f9",
+        "surface": "#ffffff",
+        "surface_hover": "#ebeef2",
+        "surface_elevated": "#ffffff",
+        "border": "#cbd3df",
+        "text": "#1f2328",
+        "text_muted": "#606a78",
+        "accent": "#2563eb",
+        "accent_hover": "#1d4ed8",
+        "accent_text": "#ffffff",
+        "danger": "#b42318",
+        "warning": "#9a6700",
+        "success": "#1f7a4d",
+        "info": "#0369a1"
+      },
+      "dark": {
+        "primary": "#7aa2ff",
+        "primary_hover": "#96b5ff",
+        "secondary": "#b6bfcc",
+        "secondary_hover": "#cbd5e1",
+        "background": "#202124",
+        "surface": "#2b2d31",
+        "surface_hover": "#363a42",
+        "surface_elevated": "#30333a",
+        "border": "#464c56",
+        "text": "#f5f7fa",
+        "text_muted": "#b6bfcc",
+        "accent": "#7aa2ff",
+        "accent_hover": "#96b5ff",
+        "accent_text": "#101216",
+        "danger": "#ff8a7a",
+        "warning": "#f2c94c",
+        "success": "#72d6a4",
+        "info": "#38bdf8"
+      }
+    },
+    "typography": {
+      "font_family_sans": "system-ui, -apple-system, sans-serif",
+      "font_family_mono": "ui-monospace, 'Cascadia Code', monospace",
+      "size_xs": 11.0,
+      "size_sm": 12.0,
+      "size_md": 14.0,
+      "size_lg": 16.0,
+      "size_xl": 20.0,
+      "size_2xl": 24.0,
+      "line_height_tight": 1.2,
+      "line_height_normal": 1.45,
+      "font_weight_normal": 400,
+      "font_weight_medium": 500,
+      "font_weight_bold": 700
+    },
+    "spacing": {
+      "xs": 4.0,
+      "sm": 8.0,
+      "md": 12.0,
+      "lg": 16.0,
+      "xl": 24.0,
+      "xxl": 32.0
+    },
+    "radius": {
+      "sm": 4.0,
+      "md": 6.0,
+      "lg": 8.0,
+      "full": 9999.0
+    },
+    "shadow": {
+      "light": {
+        "sm": "0 1px 3px rgba(0,0,0,0.12)",
+        "md": "0 4px 6px rgba(0,0,0,0.10)",
+        "lg": "0 10px 15px rgba(0,0,0,0.10)"
+      },
+      "dark": {
+        "sm": "0 1px 3px rgba(0,0,0,0.40)",
+        "md": "0 4px 6px rgba(0,0,0,0.35)",
+        "lg": "0 10px 15px rgba(0,0,0,0.35)"
+      }
+    },
+    "motion": {
+      "duration_fast_ms": 100,
+      "duration_normal_ms": 200,
+      "duration_slow_ms": 300,
+      "easing_standard": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "easing_decelerate": "cubic-bezier(0, 0, 0.2, 1)",
+      "easing_accelerate": "cubic-bezier(0.4, 0, 1, 1)"
+    }
+  },
+  "output": {
+    "dir": ".",
+    "overwrite": false
+  },
+  "codegen": {
+    "layout_path": "src/ui/zml_layout.rs",
+    "window_path": "src/ui/window_options.rs"
+  },
+  "generated_with": "8.14.0"
+}
