@@ -28,6 +28,12 @@ pub const MONO_FONT_FAMILY: &str = if cfg!(target_os = "windows") {
 pub mod animation;
 pub mod carousel;
 pub mod code_editor;
+/// Compile-checked codegen output. Gated on `terminal` like `gpu-canvas`:
+/// the Terminal fixture node needs the slurminal component, and generated
+/// projects without a Terminal tab must not inherit its native toolchain.
+/// The workspace enables `terminal` by default, so plain `cargo build`
+/// still type-checks the fixture; generated projects opt in per template.
+#[cfg(feature = "terminal")]
 pub mod codegen_fixtures;
 pub mod debug_overlay;
 pub mod divider;

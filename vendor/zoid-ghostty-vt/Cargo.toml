@@ -1,0 +1,42 @@
+# Standalone manifest for generated projects (task 9.3.2).
+#
+# Same shape as `Cargo.toml` with the sibling path dep rewritten to the
+# vendor-layout name (`../zoid-ghostty-vt-sys`). `copy_vendor_crates`
+# prefers this file when vendoring. Keep in sync with `Cargo.toml`.
+
+[package]
+name = "zoid-ghostty-vt"
+description = "Safe Rust API for libghostty-vt, the Ghostty terminal emulation library (Zoid-vendored, see VENDORED.md)"
+version = "0.3.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ClawfficeOrg/libghostty-rs"
+rust-version = "1.90"
+authors = ["Uzair Aftab", "Leah Amelia Chen"]
+
+[lib]
+name = "libghostty_vt"
+
+[features]
+default = ["kitty-graphics"]
+allocator_api = ["dep:allocator-api2"]
+kitty-graphics = ["zoid-ghostty-vt-sys/kitty-graphics"]
+png = ["dep:png"]
+log = ["dep:log"]
+link-dynamic = ["zoid-ghostty-vt-sys/link-dynamic"]
+tracing = ["dep:tracing"]
+
+[dependencies]
+allocator-api2 = { version = "0.4.0", optional = true }
+bitflags = "2.11.0"
+zoid-ghostty-vt-sys = { path = "../zoid-ghostty-vt-sys", version = "0.3.0" }
+int-enum = "1.2.0"
+png = { version = "0.18.1", optional = true }
+log = { version = "0.4.29", optional = true }
+tracing = { version = "0.1.44", optional = true }
+
+[dev-dependencies]
+zoid-ghostty-vt-sys = { path = "../zoid-ghostty-vt-sys", version = "0.3.0" }
+
+[package.metadata.docs.rs]
+all-features = true

@@ -76,10 +76,12 @@ pub struct ZmlEntities {
     pub node_53: Entity<zoid_gpui::Ribbon>,
     /// `Tree` node.
     pub node_54: Entity<gpui_kit::component::tree::TreeState>,
+    /// `Terminal` node.
+    pub node_55: Entity<zoid_slurminal_component::surface::TerminalView>,
     /// `TextInput` node.
-    pub node_58: Entity<gpui_kit::component::input::InputState>,
+    pub node_59: Entity<gpui_kit::component::input::InputState>,
     /// `Slider` node.
-    pub node_63: Entity<gpui_kit::component::slider::SliderState>,
+    pub node_64: Entity<gpui_kit::component::slider::SliderState>,
 }
 
 impl ZmlEntities {
@@ -102,8 +104,9 @@ impl ZmlEntities {
             node_52: cx.new(zoid_gpui::KeybindField::new),
             node_53: cx.new(zoid_gpui::Ribbon::new),
             node_54: cx.new(|cx| gpui_kit::component::tree::TreeState::new(cx)),
-            node_58: cx.new(|cx| gpui_kit::component::input::InputState::new(_window, cx).placeholder("Reason")),
-            node_63: cx.new(|_| gpui_kit::component::slider::SliderState::new()),
+            node_55: cx.new(|_cx| zoid_slurminal_component::surface::TerminalView::new().with_font_family("Consolas").with_font_size(14f32).with_palette(zoid_slurminal_component::surface::TerminalPalette { foreground: zoid_slurminal_component::terminal::RgbColor { r: 221, g: 221, b: 221 }, background: zoid_slurminal_component::terminal::RgbColor { r: 30, g: 30, b: 46 }, cursor: zoid_slurminal_component::terminal::RgbColor { r: 245, g: 224, b: 220 }, selection: zoid_slurminal_component::terminal::RgbColor { r: 69, g: 71, b: 90 }, ansi: [zoid_slurminal_component::terminal::RgbColor { r: 0, g: 0, b: 0 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 0, b: 0 }, zoid_slurminal_component::terminal::RgbColor { r: 0, g: 255, b: 0 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 255, b: 0 }, zoid_slurminal_component::terminal::RgbColor { r: 0, g: 0, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 0, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 0, g: 255, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 255, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 17, g: 17, b: 17 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 17, b: 17 }, zoid_slurminal_component::terminal::RgbColor { r: 17, g: 255, b: 17 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 255, b: 17 }, zoid_slurminal_component::terminal::RgbColor { r: 17, g: 17, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 17, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 17, g: 255, b: 255 }, zoid_slurminal_component::terminal::RgbColor { r: 255, g: 255, b: 255 }] }).with_scrollback_limit(10000usize).with_working_directory("/tmp")),
+            node_59: cx.new(|cx| gpui_kit::component::input::InputState::new(_window, cx).placeholder("Reason")),
+            node_64: cx.new(|_| gpui_kit::component::slider::SliderState::new()),
         }
     }
 }
@@ -301,9 +304,12 @@ pub(super) fn zml_layout(
                         .child(
                             gpui_kit::component::tree::Tree::new(&_entities.node_54, |_ix, _entry, _selected, _window, _cx| gpui_kit::component::list::ListItem::new(_ix))
                         )
+                        .child(
+                            _entities.node_55.clone()
+                        )
                 )
                 .child(
-                    div().id("node-55")
+                    div().id("node-56")
                         .on_aux_click({
                             let filters = overlays.filters.clone();
                             move |_ev, window, _cx| {
@@ -330,15 +336,15 @@ pub(super) fn zml_layout(
                         .items_center()
                         .justify_center()
                         .child(
-                            div().id("node-56").flex().flex_col()
+                            div().id("node-57").flex().flex_col()
                                 .child(
                                     zoid_gpui::Label::new("")
                                 )
                                 .child(
-                                    gpui_kit::component::input::Input::new(&_entities.node_58)
+                                    gpui_kit::component::input::Input::new(&_entities.node_59)
                                 )
                                 .child(
-                                    gpui_kit::component::button::Button::new("node-59")
+                                    gpui_kit::component::button::Button::new("node-60")
                                         .label("Cancel")
                                         .on_click({
                                             let confirm = overlays.confirm.clone();
@@ -357,15 +363,15 @@ pub(super) fn zml_layout(
                         div().absolute().inset_0().bg(rgb(0x000000)).opacity(0.2)
                     )
                     .surface(
-                        div().id("node-60").flex().flex_col()
+                        div().id("node-61").flex().flex_col()
                             .child(
                                 zoid_gpui::Label::new("")
                             )
                             .child(
-                                gpui_kit::component::button::Toggle::new("node-62")
+                                gpui_kit::component::button::Toggle::new("node-63")
                             )
                             .child(
-                                gpui_kit::component::slider::Slider::new(&_entities.node_63)
+                                gpui_kit::component::slider::Slider::new(&_entities.node_64)
                             )
                     )
             )

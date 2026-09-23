@@ -5,11 +5,20 @@ edition = "2024"
 license = "MIT"
 publish = false
 
+# Own workspace root so Slurminal builds standalone inside the Zoid checkout
+# (same detachment as examples/tray and examples/terminal-pane).
+[workspace]
+
 [dependencies]
 gpui-kit = { version = "0.6", features = ["component", "assets"] }
 gpui = { package = "gpui-pre", version = "0.3" }
-zoid-gpui = { path = "vendor/zoid-gpui" }
+zoid-gpui = { path = "vendor/zoid-gpui", features = ["terminal"] }
 zoid-core = { path = "vendor/zoid-core" }
+# The terminal itself: libghostty-vt core, GPUI surface, PTY driver. Slurminal
+# uses only this crate's public interface (task 9.3.5). The vendored chain
+# (component + Ghostty crates) mirrors `copy_vendor_crates`; the Ghostty C
+# library builds on first build (network + Zig, or `GHOSTTY_SOURCE_DIR`).
+zoid-slurminal-component = { path = "vendor/zoid-slurminal-component" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.61", features = ["Win32_System_Power"] }

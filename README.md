@@ -12,11 +12,19 @@ here first and get fixed upstream.
 
 ## Status
 
-Planning. See [`docs/todo-v1.json`](docs/todo-v1.json) for the implementation plan.
+Early. `cargo run` opens a window running your default shell (`COMSPEC` on
+Windows, `$SHELL` elsewhere) in a real PTY, with keyboard input; closing the
+window or exiting the shell ends the session. The grid is a fixed 80x24 for now.
+See [`docs/todo-v1.json`](docs/todo-v1.json) for the implementation plan.
 
 The terminal emulator itself is not implemented in this repository. It lives in
-`zoid-slurminal-component` inside the Zoid workspace; this repo owns the
-application around it.
+`zoid-slurminal-component` inside the Zoid workspace (vendored under `vendor/`);
+this repo owns the application around it and uses only the component's public
+interface.
+
+Building needs Zig and network access on first build (the Ghostty C library is
+fetched and compiled by `vendor/zoid-ghostty-vt-sys/build.rs`), or
+`GHOSTTY_SOURCE_DIR` pointing at a local Ghostty checkout.
 
 ## Planning
 

@@ -1,0 +1,29 @@
+# Standalone manifest for generated projects (task 9.3.2).
+#
+# `copy_vendor_crates` prefers this file over `Cargo.toml` when vendoring
+# into a generated project's `vendor/` directory. It inlines the workspace
+# keys (`version`, `edition`, ...) that only resolve inside this workspace
+# and rewrites the sibling path deps to the vendor-layout names
+# (`../zoid-ghostty-vt`, `../zoid-core`). Keep the dependency set in sync
+# with `Cargo.toml` when it changes.
+
+[package]
+name = "zoid-slurminal-component"
+version = "8.14.0"
+edition = "2024"
+description = "libghostty-vt terminal bindings and a GPUI render surface for Zoid."
+license = "MIT"
+authors = ["CompewterTutor"]
+repository = "https://github.com/CompewterTutor/Zoid"
+build = "build.rs"
+
+[dependencies]
+gpui-kit = { version = "0.6" }
+gpui = { package = "gpui-pre", version = "0.3" }
+zoid-core = { path = "../zoid-core" }
+zoid-ghostty-vt = { path = "../zoid-ghostty-vt", version = "0.3.0" }
+base64 = "0.22"
+portable-pty = "0.9"
+
+[build-dependencies]
+pkg-config = "0.3"

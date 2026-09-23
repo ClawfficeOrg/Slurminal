@@ -1,0 +1,34 @@
+# Standalone manifest for generated projects (task 9.3.2).
+#
+# Same dependency set as `Cargo.toml` minus the `gen-bindings` bin target
+# and its `bindgen-tool` feature: the code generator needs `tools/`, which
+# the vendor copy does not carry (only `src/` + `build.rs` are vendored),
+# and generated projects never regenerate bindings. The native Ghostty
+# build itself still runs from `build.rs` at first build (network + Zig
+# required, same as in this workspace). `copy_vendor_crates` prefers this
+# file when vendoring. Keep in sync with `Cargo.toml`.
+
+[package]
+name = "zoid-ghostty-vt-sys"
+description = "Raw FFI bindings for libghostty-vt, the Ghostty terminal emulation library (Zoid-vendored, see VENDORED.md)"
+version = "0.3.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ClawfficeOrg/libghostty-rs"
+rust-version = "1.90"
+authors = ["Uzair Aftab", "Leah Amelia Chen"]
+links = "ghostty-vt"
+build = "build.rs"
+
+[lib]
+doctest = false
+
+[features]
+default = ["vendored"]
+vendored = []
+pkg-config = ["dep:pkg-config"]
+link-dynamic = []
+kitty-graphics = []
+
+[build-dependencies]
+pkg-config = { version = "0.3", optional = true }

@@ -9,6 +9,12 @@ gpui = { package = "gpui-pre", version = "0.3" }
 regex = "1.11"
 unicode-segmentation = "1.12.0"
 zoid-core = { path = "../zoid-core" }
+# Optional like in `Cargo.toml`, but with NO default (see [features]):
+# generated projects opt into the terminal fixture check per template so
+# only terminal-capable projects inherit the Ghostty/Zig native toolchain.
+zoid-slurminal-component = { path = "../zoid-slurminal-component", optional = true }
 
 [features]
+default = []
+terminal = ["dep:zoid-slurminal-component"]
 gpu-canvas = []

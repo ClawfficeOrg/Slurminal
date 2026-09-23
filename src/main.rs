@@ -16,9 +16,12 @@ mod window_options;
 
 mod settings;
 
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
+
 use gpui::{
-    App, Bounds, Context, SharedString, TitlebarOptions, Window, WindowBounds,
-    WindowOptions, div, prelude::*, px, size,
+    AnyElement, App, Bounds, Context, Entity, SharedString, Subscription, Task, TitlebarOptions,
+    Window, WindowBounds, WindowOptions, div, prelude::*, px, size,
 };
 use gpui_kit::component::*;
 
@@ -29,25 +32,179 @@ use menu_actions::{MenuNavLeft, MenuNavRight, OpenAppMenu};
 use menu_bar::AppMenuBar;
 use settings::AppSettings;
 
-/// Root view for the main application window.
+// The terminal: everything below comes from the component's public
+// interface only. The view owns the emulator core; the PTY stays app-owned
+// per the terminal component contract.
+use zoid_slurminal_component::pty::{PtyConfig, PtySession, pump_to_channel};
+use zoid_slurminal_component::surface::{TerminalEvent, TerminalView};
+
+/// Grid size the shell starts with. Fixed for now: viewport-driven resize
+/// (`grid_dims_for_viewport` + `PtySession::resize`) is a follow-up.
+const TERMINAL_COLS: u16 = 80;
+/// See [`TERMINAL_COLS`].
+const TERMINAL_ROWS: u16 = 24;
+
+/// How often queued PTY output is drained into the terminal (~120 Hz).
+const PUMP_POLL_INTERVAL: Duration = Duration::from_millis(8);
+
+/// How long teardown waits for the killed shell to be reaped.
+const REAP_TIMEOUT: Duration = Duration::from_millis(500);
+
+/// A live shell: the retained view plus the PTY session behind it.
+///
+/// Output: a pump thread forwards child output to `rx`, and a main-thread
+/// task drains it into the `!Send` terminal via `TerminalView::feed`.
+/// Input: the view emits `TerminalEvent::Input` (keys and VT query
+/// responses), which the subscription writes to the PTY.
+struct TerminalPane {
+    view: Entity<TerminalView>,
+    session: PtySession,
+    rx: Receiver<Vec<u8>>,
+    _input: Subscription,
+    _poll: Task<()>,
+}
+
+/// Root view for the main application window: a menu bar and a terminal.
 struct RootView {
     project_name: SharedString,
     #[cfg(not(target_os = "macos"))]
     menu_bar: gpui::Entity<AppMenuBar>,
+    /// The live shell. `None` until [`RootView::start_terminal`] runs —
+    /// constructing the view (including in `cargo test`) never spawns a
+    /// process; only `open_main_window` starts one.
+    terminal: Option<TerminalPane>,
+    /// Why the shell could not start, shown in place of the terminal.
+    spawn_error: Option<SharedString>,
+    /// Kill-and-reap the shell when the window's view is released.
+    _release: Subscription,
 }
 
 impl RootView {
-    /// Creates a new `RootView`.
+    /// Creates a new `RootView` with no shell attached.
     ///
     /// Colours are not stored on the view: they are read from `cx.theme()` at
     /// render time, so a theme change repaints every view without any of them
     /// holding a stale copy.
     fn new(project_name: impl Into<SharedString>, cx: &mut Context<Self>) -> Self {
-        let _ = cx;
         Self {
             project_name: project_name.into(),
             #[cfg(not(target_os = "macos"))]
             menu_bar: cx.new(|cx| AppMenuBar::new(menu_actions::build_in_window_menus(), cx)),
+            terminal: None,
+            spawn_error: None,
+            _release: cx.on_release(|view, _cx| view.close_terminal()),
+        }
+    }
+
+    /// Spawn the default shell in a PTY, wire it to a terminal view, and
+    /// give that view keyboard focus.
+    ///
+    /// A spawn failure leaves `terminal` as `None` and records the error
+    /// for the window to show.
+    fn start_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.terminal.is_some() {
+            return;
+        }
+        let config = PtyConfig::shell(TERMINAL_COLS, TERMINAL_ROWS);
+        let spawned = PtySession::spawn(&config)
+            .and_then(|session| session.clone_reader().map(|reader| (session, reader)));
+        let (session, reader) = match spawned {
+            Ok(pair) => pair,
+            Err(error) => {
+                self.spawn_error = Some(format!("Could not start a shell: {error}").into());
+                cx.notify();
+                return;
+            }
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || pump_to_channel(reader, tx));
+
+        let view = cx.new(|_cx| TerminalView::new());
+        let input = cx.subscribe(&view, |root, _view, event: &TerminalEvent, _cx| {
+            let TerminalEvent::Input(bytes) = event;
+            if let Some(pane) = root.terminal.as_mut() {
+                // A failed write means the shell is gone; the poll task
+                // notices the exit and closes the window.
+                let _ = pane.session.write_all(bytes);
+            }
+        });
+        let poll = cx.spawn_in(window, async move |root, cx| {
+            loop {
+                cx.background_executor().timer(PUMP_POLL_INTERVAL).await;
+                let alive = root
+                    .update_in(cx, |root, window, cx| root.pump(window, cx))
+                    .unwrap_or(false);
+                if !alive {
+                    break;
+                }
+            }
+        });
+
+        view.update(cx, |view, cx| view.focus(window, cx));
+        self.spawn_error = None;
+        self.terminal = Some(TerminalPane {
+            view,
+            session,
+            rx,
+            _input: input,
+            _poll: poll,
+        });
+        cx.notify();
+    }
+
+    /// Drain queued output into the terminal; close the window once the
+    /// shell has exited. Returns whether the shell is still running.
+    fn pump(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(pane) = self.terminal.as_mut() else {
+            return false;
+        };
+        let mut disconnected = false;
+        loop {
+            match pane.rx.try_recv() {
+                Ok(chunk) => pane.view.update(cx, |view, cx| view.feed(&chunk, cx)),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    disconnected = true;
+                    break;
+                }
+            }
+        }
+        // ConPTY never delivers EOF while the master is open, so child exit
+        // is the reliable signal; a disconnected pump is the other one.
+        let alive = !disconnected && pane.session.is_alive().unwrap_or(false);
+        if !alive {
+            self.close_terminal();
+            window.remove_window();
+        }
+        alive
+    }
+
+    /// Kill the shell and drop the terminal state.
+    ///
+    /// Kill-then-reap is explicit rather than relying on the session's drop
+    /// backstop, which would leave a zombie until this process exits. The
+    /// pump thread exits on its own once the session's master end closes.
+    fn close_terminal(&mut self) {
+        if let Some(mut pane) = self.terminal.take() {
+            let _ = pane.session.kill();
+            let _ = pane.session.wait_for_exit(REAP_TIMEOUT);
+        }
+    }
+
+    /// The terminal, or the reason there is none.
+    fn render_terminal(&self, cx: &Context<Self>) -> AnyElement {
+        match (&self.terminal, &self.spawn_error) {
+            (Some(pane), _) => pane.view.clone().into_any_element(),
+            (None, Some(error)) => div()
+                .text_sm()
+                .text_color(cx.theme().danger)
+                .child(error.clone())
+                .into_any_element(),
+            (None, None) => div()
+                .text_sm()
+                .text_color(cx.theme().muted_foreground)
+                .child(format!("{}: starting shell…", self.project_name))
+                .into_any_element(),
         }
     }
 }
@@ -55,43 +212,22 @@ impl RootView {
 impl Render for RootView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let mode_label: SharedString = if theme.mode.is_dark() {
-            "Theme: Dark".into()
-        } else {
-            "Theme: Light".into()
-        };
-        let (background, foreground, muted, accent) = (
-            theme.background,
-            theme.foreground,
-            theme.muted_foreground,
-            theme.primary,
-        );
+        let (background, foreground) = (theme.background, theme.foreground);
 
         let content = div()
+            .id("slurminal-terminal")
             .flex()
             .flex_col()
             .flex_grow(1.0)
-            .justify_center()
-            .items_center()
-            .gap_3()
+            .min_h_0()
+            .overflow_hidden()
+            .p_2()
             .bg(background)
             .text_color(foreground)
-            .child(
-                div()
-                    .text_xl()
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(format!("Welcome to {}", self.project_name)),
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(muted)
-                    .child("A menubar GPUI app generated by Zoid."),
-            )
-            .child(div().text_sm().text_color(accent).child(mode_label))
-            // Everything above is hand-written chrome. This child is the part
-            // the Zoid canvas owns, regenerated from `ui/app.json` on export.
-            .child(zml_layout::zml_layout(window, cx));
+            // The part the Zoid canvas owns, regenerated from `ui/app.json`
+            // on export. Empty by default; the terminal is the app's content.
+            .child(zml_layout::zml_layout(window, cx))
+            .child(self.render_terminal(cx));
 
         let root = div()
             .key_context("app")
@@ -144,6 +280,9 @@ fn open_main_window(cx: &mut App) {
         options,
         |window, cx| {
             let view = cx.new(|cx| RootView::new("Slurminal", cx));
+            // A terminal app opens with a live shell. Spawning here, not in
+            // `RootView::new`, keeps view construction (and tests) headless.
+            view.update(cx, |view, cx| view.start_terminal(window, cx));
             cx.new(|cx| Root::new(view, window, cx).bg(cx.theme().background))
         },
     );
@@ -243,6 +382,19 @@ mod tests {
 
         view.read_with(cx, |view, _| {
             assert_eq!(view.project_name.as_ref(), "Slurminal");
+        });
+    }
+
+    #[gpui::test]
+    fn constructing_the_root_view_spawns_no_shell(cx: &mut TestAppContext) {
+        let view = cx.update(|cx| {
+            gpui_kit::init(cx);
+            cx.new(|cx| RootView::new("Slurminal", cx))
+        });
+
+        view.read_with(cx, |view, _| {
+            assert!(view.terminal.is_none());
+            assert!(view.spawn_error.is_none());
         });
     }
 
