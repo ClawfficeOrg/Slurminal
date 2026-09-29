@@ -1,4 +1,4 @@
-# Brandump — Slurminal + Specttyr + zoid-slurminal-component
+# Brandump — Specttyr + Slurminal + zoid-terminal
 
 Captured 2026-09-16 from a live jam session. This is the raw intent, not a spec.
 It exists so the idea survives tab switches. Turn it into TaskerKeeper plans in
@@ -10,9 +10,9 @@ each repo; keep this file as the origin record.
 
 | Name | Repo | What it is |
 |---|---|---|
-| **zoid-slurminal-component** | in Zoid (`crates/zoid-slurminal-component`) | libghostty-vt bindings + GPUI terminal surface. The reusable crate. |
-| **Slurminal** | `git@github.com:ClawfficeOrg/Slurminal.git` | The terminal app built on the component. |
-| **Specttyr** | `git@github.com:ClawfficeOrg/Specttyr.git` | Rust/GPUI rewrite of Paseo. |
+| **zoid-terminal** | in Zoid (`crates/zoid_terminal`) | libghostty-vt bindings + GPUI terminal surface. The reusable crate. |
+| **Specttyr** | `git@github.com:ClawfficeOrg/Specttyr.git` | The terminal app built on the component. |
+| **Slurminal** | `git@github.com:ClawfficeOrg/Slurminal.git` | Rust/GPUI rewrite of Paseo. |
 
 Both apps scaffold from Zoid templates (menubar/taskbar) and land as submodules
 in Zoid's `examples/` directory. Split-out of the component into bindings-only +
@@ -20,7 +20,7 @@ surface-only crates is a later option, not a now-decision.
 
 ---
 
-## Slurminal — terminal app
+## Specttyr — terminal app
 
 Inspiration targets: WezTerm (feature parity goal), Ghostty (emulator core),
 Kitty (graphics protocols).
@@ -42,7 +42,7 @@ Kitty (graphics protocols).
   editor of it.
 - **Kitty image protocol** support.
 - **Sixel** support.
-- **Ratatui-based console app** for Slurminal (TUI companion / headless mode).
+- **Ratatui-based console app** for Specttyr (TUI companion / headless mode).
 - **Figby support, built in.** Figby is a Rust port of FIGlet 2.2.5 (`figby`
   crate, v6.0.33, `crate-type = ["cdylib", "lib"]`, on crates.io, BSD-3-Clause,
   source at `~/git_repos/Figby` in WSL / github.com/DoseOfGose/figby). It is a
@@ -50,13 +50,13 @@ Kitty (graphics protocols).
   drawing tools, layers, a palette editor, a font editor, image import, and an
   animation timeline with keyframing, tweening, onion skinning, and GIF/APNG/ANSI
   export. It also has `--play <file.gif>` for fullscreen terminal GIF playback.
-  Intent: use it to make Slurminal's TUI flashy and extravagant while the
+  Intent: use it to make Specttyr's TUI flashy and extravagant while the
   terminal itself is being built. It renders through ratatui, which is the same
   stack as the planned console companion, so it fits there naturally. Licence is
   BSD-3-Clause — permissive, so attribution is all that is required; ship it with
   the other bundled licences.
 
-### Open questions to resolve in the Slurminal plan
+### Open questions to resolve in the Specttyr plan
 
 - Quake mode specifics (the "wait until you hear these ideas" part).
 - Which WezTerm features are in-scope for v1 vs deferred.
@@ -68,10 +68,10 @@ Kitty (graphics protocols).
 
 ---
 
-## Specttyr — Paseo Rust rewrite
+## Slurminal — Paseo Rust rewrite
 
 - **Relationship to Paseo**: port the protocol to Rust serde types, speak the
-  same wire format, so Specttyr can be tested against a real Paseo daemon
+  same wire format, so Slurminal can be tested against a real Paseo daemon
   immediately. **Split from Paseo is a future direction** — diverge later where
   Rust/GPUI makes another shape obviously better. Do not over-fit to Paseo
   internals now.
@@ -84,7 +84,7 @@ Kitty (graphics protocols).
 
 - Both apps are Zoid examples first-class: they prove Zoid can build real
   applications, and they drive component requirements back into `zoid_gpui`.
-- Slurminal depends on `zoid-slurminal-component`. Specttyr depends on Slurminal
+- Specttyr depends on `zoid-terminal`. Slurminal depends on Specttyr
   (or at least the component) for its terminal panes.
 - Windows is a first-class target. libghostty-vt already supports Windows; a
   Rust + GPUI Windows terminal surface is the novel part.

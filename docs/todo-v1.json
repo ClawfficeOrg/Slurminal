@@ -7,7 +7,7 @@
       "release_version": "0.1.0",
       "next_milestone": "todo-v2.json"
     },
-    "description": "A GPUI terminal emulator built on zoid-slurminal-component. Targets WezTerm-level feature parity with a settings UI over a config file, Nerd Font support, background images, kitty and sixel graphics, a Quake-style drop-down mode, a ratatui console companion with built-in Figby banner and animation support, and packaging for all three platforms.",
+    "description": "A Rust and GPUI reimplementation of the Paseo client. Ports the Paseo wire protocol to typed serde structs and speaks the same WebSocket format, so Slurminal works against a real Paseo daemon from the first working build. Divergence from Paseo is a later direction, taken only where the Rust and GPUI stack makes another shape clearly better.",
     "prerequisites": []
   },
   "agent_config": {
@@ -28,764 +28,813 @@
     "required_reading": [
       "README.md",
       "docs/todo-v1.json",
-      "docs/wezterm-feature-inventory.md",
-      "docs/quake-mode.md",
-      "docs/brandump.md"
+      "docs/protocol-inventory.md",
+      "docs/compatibility.md"
     ]
   },
   "meta": {
-    "origin": "Seeded from Zoid docs/brandump-slurminal-specttyr.md, task 9.4.1.",
-    "blocks_on": "Zoid milestone v11 (zoid-slurminal-component). 1.0.x tasks cannot start until Zoid 9.3.5 lands.",
-    "dependency_note": "The terminal emulator itself is NOT built here. It lives in zoid-slurminal-component. This repo owns the application: windows, tabs, panes, configuration, and the features layered on top."
+    "origin": "Seeded from Zoid docs/brandump-specttyr-slurminal.md, task 9.4.2.",
+    "paseo_reference": "The Paseo checkout at ../paseo is the protocol authority. packages/protocol is the source of truth; packages/app is the UI reference.",
+    "protocol_scale": "As counted 2026-09-16: 171 RPC request/response pairs across 281 distinct message-type literals, 15 client capabilities, plus binary terminal and file-transfer frames. This is the size of the port.",
+    "stance": "Paseo-compatible now, diverge later. Compatibility is a feature until it is a constraint; revisit at v2, not during v1.",
+    "terminal_dependency": "Terminal panes consume zoid-terminal from Zoid milestone v11."
   },
   "phases": [
     {
-      "id": "1.0",
-      "title": "Application shell",
-      "goal": "Slurminal becomes a real terminal application: it opens, shows a working terminal at the right size, and can be resized, tabbed, and configured through a file. Nothing exotic yet.",
+      "id": "2.0",
+      "title": "Protocol inventory and compatibility contract",
+      "goal": "Turn 'port the Paseo protocol' into an enumerated, ordered surface, and write down what compatibility obliges Slurminal to do. No protocol code is written until this phase is done, because the compatibility rules were designed for a TypeScript client and their Rust translation is a decision, not a transcription.",
       "prerequisites": [],
       "tasks": [
         {
-          "id": "1.0.1",
-          "title": "Embed the component and render a working terminal",
+          "id": "2.0.1",
+          "title": "Protocol surface inventory",
           "status": "pending",
-          "goal": "Replace the menubar template's placeholder window content with a real terminal from zoid-slurminal-component. Wire the PTY lifecycle to the window lifecycle so the shell starts with the window and dies with it, and confirm the grid resizes correctly when the window is resized. This is the first integration point with the Zoid milestone and the place to find gaps in the component's published interface.",
+          "goal": "Read ../paseo/packages/protocol and produce docs/protocol-inventory.md: every RPC pair, grouped by domain (agent, workspace, project, checkout, terminal, provider, config, schedule, chat, loop, plugin, browser, speech), with a port order and a priority. For each group record whether it is required for a useful client, required for parity, or deferrable. Include the binary frame formats, the capability list, and the handshake. Note where a schema's shape will need care in Rust — unions, optionality, and the append-only rule — rather than discovering it during the port.",
           "touches": [
-            "src/main.rs",
-            "src/ui/zml_layout.rs",
-            "ui/app.json",
-            "Cargo.toml"
+            "docs/protocol-inventory.md"
           ],
           "success": [
-            "The app opens with an interactive shell prompt",
-            "Window resize resizes the terminal grid and the child PTY",
-            "Closing the window does not leave a shell process behind",
-            "Builds and runs on Windows, macOS, and Linux"
+            "Every RPC pair in packages/protocol appears in a group",
+            "Each group is marked useful, parity, or deferrable",
+            "Binary frame formats and the handshake are covered",
+            "Schemas that will need Rust modelling care are flagged with the reason"
           ],
-          "tests": "Manual: launch, run a command, resize, close. Confirm no orphan processes.",
+          "tests": "Documentation task. Cross-check the count against packages/protocol/src/messages.ts.",
           "prerequisites": [],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Slurminal renders a working terminal from zoid-slurminal-component",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.0.2",
-          "title": "Config file load, merge, and hot reload",
-          "status": "pending",
-          "goal": "Define Slurminal's configuration format, load it from the platform config directory, merge it over built-in defaults, and watch it for changes so edits apply without a restart. The format is the contract the settings UI edits, so define it as a typed model with a serialiser rather than parsing into maps. Decide and document the format — TOML is the expected choice — and how unknown keys are handled across versions.",
-          "touches": [
-            "src/config/",
-            "src/main.rs",
-            "docs/config.md"
-          ],
-          "success": [
-            "A config file is loaded and overrides defaults",
-            "Editing the file applies the change without restarting",
-            "A malformed file reports a useful error instead of failing to start",
-            "Unknown keys from a newer version do not break an older build",
-            "The format and its merge rules are documented"
-          ],
-          "tests": "Unit tests for load, merge, and error cases; manual hot-reload test.",
-          "prerequisites": [
-            "1.0.1"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Slurminal configuration file with typed defaults, merge, and hot reload",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.0.3",
-          "title": "Tabs and split panes",
-          "status": "pending",
-          "goal": "Multiple terminal tabs with keyboard and menu navigation, and split panes within a tab with keyboard resizing. Each pane owns its own PTY and terminal instance. Tabs show a title derived from the running process or the shell's reported title. Persist the layout shape so a restart can offer to restore it — actually restoring is 1.0.4.",
-          "touches": [
-            "src/workspace/",
-            "src/ui/",
-            "src/menu_actions.rs"
-          ],
-          "success": [
-            "Tabs can be created, closed, and switched by keyboard and menu",
-            "Panes split horizontally and vertically and resize from the keyboard",
-            "Each pane runs an independent shell",
-            "Tab titles reflect the running program or reported title"
-          ],
-          "tests": "Unit tests for the layout model; manual interaction test on each platform.",
-          "prerequisites": [
-            "1.0.1"
-          ],
+          "parallel_group": "recon",
           "complexity": "High",
           "agent": "pro_dev_agent",
-          "changelog": "Terminal tabs and split panes with keyboard and menu navigation",
+          "changelog": "Paseo protocol surface inventoried with port order and priorities",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         },
         {
-          "id": "1.0.4",
-          "title": "Session persistence and restore",
+          "id": "2.0.2",
+          "title": "Compatibility contract for a Rust client",
           "status": "pending",
-          "goal": "Save the window layout, tabs, pane splits, and working directories on exit, and restore them on launch. Restoring a pane means opening a new shell in the recorded directory, not resurrecting the process — be explicit about that in the docs so it is not mistaken for tmux-style session persistence. Offer the restore rather than forcing it.",
+          "goal": "Write docs/compatibility.md translating Paseo's compatibility rules into obligations for Slurminal. The Paseo rules assume Zod and a TypeScript producer: schemas are append-only, new fields optional, new enum values gated behind a capability, and every shim tagged for removal. Slurminal is a consumer, so state its side of that bargain — tolerance for unknown fields and enum values, how it advertises capabilities, how it degrades against an older or newer daemon, and what it does when it meets a message it cannot parse. Serde's default strictness is the hazard here, so the document must name the deviation strategy explicitly.",
           "touches": [
-            "src/workspace/persistence.rs",
-            "src/main.rs",
-            "docs/config.md"
+            "docs/compatibility.md"
           ],
           "success": [
-            "Layout and directories survive a restart",
-            "Restore is offered, not forced",
-            "A corrupt state file falls back to a single default window",
-            "The docs state plainly that processes are not resurrected"
-          ],
-          "tests": "Unit tests for serialisation round-trip; manual restart test.",
-          "prerequisites": [
-            "1.0.3"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Window layout, tabs, and working directories persist across restarts",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.1",
-      "title": "WezTerm parity inventory",
-      "goal": "Replace the blanket 'support everything WezTerm does' goal with an enumerated inventory and a per-item include/defer decision, so the remaining phases are scoped by a document rather than a vibe.",
-      "prerequisites": [
-        "1.0"
-      ],
-      "tasks": [
-        {
-          "id": "1.1.1",
-          "title": "Enumerate the WezTerm feature surface",
-          "status": "pending",
-          "goal": "Read WezTerm's documentation and feature list and write docs/wezterm-feature-inventory.md: every user-visible feature, grouped by area (appearance, input, multiplexing, graphics, multiplexing-adjacent, scripting, remote). For each, mark include-for-v1, include-later, or deliberately-excluded with a one-line reason. This document gates the rest of the milestone, so completeness matters more than speed. Do not evaluate feasibility beyond a first instinct — that is what the per-feature tasks are for.",
-          "touches": [
-            "docs/wezterm-feature-inventory.md"
-          ],
-          "success": [
-            "Every WezTerm feature area has entries, not a summary paragraph",
-            "Each entry is marked include-for-v1, include-later, or excluded with a reason",
-            "Excluded items name the reason (conflicts with our stack, needs a subsystem we lack, out of scope)",
-            "Later phases reference this document instead of restating features"
+            "Slurminal's obligations as a consumer are stated, separate from Paseo's as a producer",
+            "Unknown-field and unknown-enum handling is decided and justified",
+            "Capability advertisement and feature gating are described with an example",
+            "The document names what breaks compatibility and what does not"
           ],
           "tests": "Documentation task.",
-          "prerequisites": [],
+          "prerequisites": [
+            "2.0.1"
+          ],
+          "parallel_group": "recon",
           "complexity": "Medium",
           "agent": "mid_dev_agent",
-          "changelog": "WezTerm feature inventory with per-feature include/defer decisions",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.1.2",
-          "title": "Scope the v1 feature set from the inventory",
-          "status": "pending",
-          "goal": "Turn the inventory's include-for-v1 markings into concrete phases. Every include-for-v1 item must land in a phase with a task, and every phase must trace back to inventory entries. Record the resulting scope in the plan itself rather than a side document, so the plan and the inventory cannot drift apart.",
-          "touches": [
-            "docs/todo-v1.json",
-            "docs/wezterm-feature-inventory.md"
-          ],
-          "success": [
-            "Every include-for-v1 item maps to at least one task",
-            "No task exists that is not traceable to an inventory entry",
-            "Deferred items are grouped so a later milestone can pick them up whole"
-          ],
-          "tests": "taskerkeeper validate docs/todo-v1.json",
-          "prerequisites": [
-            "1.1.1"
-          ],
-          "complexity": "Low",
-          "agent": "basic_dev_agent",
-          "changelog": "v1 scope derived from the WezTerm inventory and folded into the plan",
+          "changelog": "Compatibility contract for a Rust Paseo client documented",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         }
       ]
     },
     {
-      "id": "1.2",
-      "title": "Settings UI",
-      "goal": "Every configuration option is reachable from a settings GUI, and the GUI and the config file stay in sync in both directions. This is a stated differentiator, not a nice-to-have.",
+      "id": "2.1",
+      "title": "Protocol types and transport",
+      "goal": "Slurminal connects to a real Paseo daemon, completes the handshake, and exchanges typed messages. This is the phase that proves the port is viable.",
       "prerequisites": [
-        "1.1"
+        "2.0"
       ],
       "tasks": [
         {
-          "id": "1.2.1",
-          "title": "Settings window shell and navigation",
+          "id": "2.1.1",
+          "title": "A paseo-protocol crate with the core envelope types",
           "status": "pending",
-          "goal": "Build the settings window: a category sidebar and a content pane, following the menubar template's existing settings pattern and the Zoid design system. Categories follow the config model's structure so the mapping stays obvious. Search across settings is part of the shell, not a later addition — a configurable terminal has too many options to browse.",
+          "goal": "Create a crate holding the wire types: the hello handshake, the server_info status payload, the session envelope, ping/pong, and the request/response correlation shape. Follow the compatibility contract for unknown fields and enum values rather than serde defaults. This crate is deliberately separate from the client so the types can be tested against captured Paseo traffic without a live daemon. A conformance test that parses recorded daemon messages from the Paseo checkout is in scope — the types are wrong until they parse real traffic.",
           "touches": [
-            "src/settings/window.rs",
-            "src/settings/categories.rs",
-            "src/menu_actions.rs"
-          ],
-          "success": [
-            "Settings opens from the menu and renders categories",
-            "Search filters settings across all categories",
-            "The layout follows the Zoid design system and themes correctly"
-          ],
-          "tests": "#[gpui::test] for navigation state; manual inspection against docs/design.md.",
-          "prerequisites": [
-            "1.0.2"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Settings window with category navigation and cross-category search",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.2.2",
-          "title": "Typed setting controls with two-way config binding",
-          "status": "pending",
-          "goal": "Build the control vocabulary the settings window needs: boolean toggle, enum picker, number field, text field, and colour picker. Each control reads from and writes to the config model, and edits apply live so the terminal re-renders as a setting changes. Writing to the file and watching for external edits must not fight each other — the loop has to settle rather than ping-pong.",
-          "touches": [
-            "src/settings/controls/",
-            "src/config/"
-          ],
-          "success": [
-            "Every control type reads and writes the config model correctly",
-            "Edits apply to the running terminal without a restart",
-            "Editing the file externally and then editing in the UI does not loop or lose changes",
-            "A setting with an invalid value is reported, not silently ignored"
-          ],
-          "tests": "Unit tests per control type; a sync test that edits both sides and asserts convergence.",
-          "prerequisites": [
-            "1.2.1"
-          ],
-          "complexity": "High",
-          "agent": "pro_dev_agent",
-          "changelog": "Typed settings controls with live two-way binding to the config file",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.2.3",
-          "title": "Appearance settings: font, colours, background image",
-          "status": "pending",
-          "goal": "The appearance category: font family and size with a font picker, a live preview pane, colour scheme selection and per-colour overrides, cursor style and blink, and the background image controls (path, opacity, blur, fit mode) that the component's theme overrides support. Font picker must show which available faces are Nerd-Font-patched, since that is a setting users get wrong.",
-          "touches": [
-            "src/settings/appearance.rs",
-            "docs/config.md"
-          ],
-          "success": [
-            "Font, colour scheme, cursor, and background image settings all apply live",
-            "The preview reflects changes as they are made",
-            "The font picker indicates Nerd Font coverage",
-            "Every option in this category round-trips through the config file"
-          ],
-          "tests": "Manual walkthrough of each control with the preview visible.",
-          "prerequisites": [
-            "1.2.2"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Appearance settings for font, colours, cursor, and background image",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.3",
-      "title": "Colour schemes and themes",
-      "goal": "Import colour schemes from the ecosystems users already have them in, so switching to Slurminal does not mean re-creating a palette by hand.",
-      "prerequisites": [
-        "1.2"
-      ],
-      "tasks": [
-        {
-          "id": "1.3.1",
-          "title": "Colour scheme import from iTerm2, Windows Terminal, and WezTerm",
-          "status": "pending",
-          "goal": "Parse colour scheme files from the three formats users are most likely to arrive with: iTerm2 .itermcolors plists, Windows Terminal JSON, and WezTerm colour definitions. Normalise them into one internal palette type. Report per-file what could not be mapped rather than silently dropping it.",
-          "touches": [
-            "src/colorscheme/import/",
-            "src/colorscheme/model.rs"
-          ],
-          "success": [
-            "Each format parses into the internal palette type",
-            "Unmappable entries produce a report, not silence",
-            "Round-tripping a scheme through the internal type is lossless for defined fields"
-          ],
-          "tests": "Fixture-based tests with one real scheme file per format.",
-          "prerequisites": [],
-          "parallel_group": "colorschemes",
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Colour scheme import from iTerm2, Windows Terminal, and WezTerm formats",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.3.2",
-          "title": "Colour scheme browser and live preview",
-          "status": "pending",
-          "goal": "A browsable library of imported and built-in schemes with a live preview that shows real terminal output, not colour swatches. Selection applies immediately and can be made per-app or per-profile. Include the ability to derive a light variant from a dark scheme, or state that it is not offered.",
-          "touches": [
-            "src/settings/colorschemes.rs",
-            "src/colorscheme/library.rs"
-          ],
-          "success": [
-            "Schemes are browsable and preview against real terminal output",
-            "Selecting a scheme applies it live",
-            "Schemes can be assigned per profile if profiles exist at this point"
-          ],
-          "tests": "Manual preview walkthrough on each platform.",
-          "prerequisites": [
-            "1.3.1"
-          ],
-          "parallel_group": "colorschemes",
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Colour scheme browser with live preview against real terminal output",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.4",
-      "title": "Graphics protocols",
-      "goal": "Inline images in the terminal: the kitty graphics protocol and sixel. These are separate protocols with separate parsers, so they get separate tasks, and both render through one shared image surface.",
-      "prerequisites": [
-        "1.0"
-      ],
-      "tasks": [
-        {
-          "id": "1.4.1",
-          "title": "Shared inline-image render surface",
-          "status": "pending",
-          "goal": "Build the surface that draws images inside the terminal grid: placement at a cell position, scaling, clipping to the viewport, and correct layering against text and selection. Both graphics protocols feed this surface, so it takes decoded images and placement metadata, not protocol payloads. Scrollback interaction must be decided: images either scroll with their content or are discarded — pick one and document it.",
-          "touches": [
-            "src/graphics/surface.rs",
-            "src/graphics/placement.rs"
-          ],
-          "success": [
-            "An image renders at a grid position and scales correctly",
-            "Images clip to the viewport and layer correctly against text",
-            "Scrollback behaviour for images is defined and implemented consistently"
-          ],
-          "tests": "#[gpui::test] placement math; manual render check.",
-          "prerequisites": [],
-          "complexity": "High",
-          "agent": "pro_dev_agent",
-          "changelog": "Shared inline-image surface for terminal graphics with grid placement and clipping",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.4.2",
-          "title": "Kitty graphics protocol",
-          "status": "pending",
-          "goal": "Implement the kitty graphics protocol: image transmission (direct, file, and shared-memory paths as supported), placement, deletion, and the query responses programs expect. Cover both PNG payloads and raw RGBA. Test against a known program that uses the protocol rather than only synthetic sequences.",
-          "touches": [
-            "src/graphics/kitty.rs"
-          ],
-          "success": [
-            "A real program using the kitty protocol displays images correctly",
-            "Transmission, placement, and deletion all work",
-            "Unsupported sub-features respond in a way the client program handles"
-          ],
-          "tests": "Integration test against a real kitty-protocol program; parsing unit tests.",
-          "prerequisites": [
-            "1.4.1"
-          ],
-          "parallel_group": "graphics",
-          "complexity": "High",
-          "agent": "pro_dev_agent",
-          "changelog": "Kitty graphics protocol support (transmission, placement, deletion)",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.4.3",
-          "title": "Sixel graphics",
-          "status": "pending",
-          "goal": "Implement sixel: palette handling, raster attributes, and rendering through the shared image surface. Sixel's colour registers and repeat syntax are the parts that get skipped and then break real programs, so cover them properly. Test against a real sixel-producing program.",
-          "touches": [
-            "src/graphics/sixel.rs"
-          ],
-          "success": [
-            "A real sixel program renders correctly",
-            "Palette handling and colour registers work across the full range",
-            "Repeat syntax and raster attributes are handled"
-          ],
-          "tests": "Integration test against a real sixel program; parsing unit tests.",
-          "prerequisites": [
-            "1.4.1"
-          ],
-          "parallel_group": "graphics",
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Sixel graphics support with palette and raster attribute handling",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.5",
-      "title": "Quake-style drop-down mode",
-      "goal": "A hotkey-summoned drop-down terminal with proper multi-monitor behaviour and animation. The brandump deferred the specifics deliberately, so this phase opens with a design document that locks them down before any implementation.",
-      "prerequisites": [
-        "1.0"
-      ],
-      "tasks": [
-        {
-          "id": "1.5.1",
-          "title": "Quake mode design document",
-          "status": "pending",
-          "goal": "Write docs/quake-mode.md and settle the open questions before implementation: summon and dismiss hotkeys and whether they are global or app-local; per-monitor versus single-monitor placement and what happens on a monitor change; slide direction and easing per edge; height or fraction and how it handles a resize; focus and hide-on-blur behaviour; interaction with normal windows and tabs; and whether it is one instance or one per monitor. This document exists because the originating notes deliberately deferred these choices.",
-          "touches": [
-            "docs/quake-mode.md"
-          ],
-          "success": [
-            "Every question above has a written answer, not a maybe",
-            "Platform differences in global hotkey support are stated with a fallback per platform",
-            "The animation specifies duration and easing so 1.5.3 can implement it without re-deciding",
-            "Deferred sub-features are listed as deferred with a reason"
-          ],
-          "tests": "Documentation task.",
-          "prerequisites": [],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Quake mode design document resolving placement, hotkeys, and animation",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.5.2",
-          "title": "Global hotkey and drop-down window",
-          "status": "pending",
-          "goal": "A window that lives off-screen and slides in on the summon hotkey. Global hotkeys are platform-specific — register where supported and provide a documented per-platform fallback where not. Handle the summon-to-visible and dismiss-to-hidden transitions, focus routing on summon, and hide-on-blur per the design doc. This window is separate from the main window and must not interfere with it.",
-          "touches": [
-            "src/quake/hotkey.rs",
-            "src/quake/window.rs",
-            "src/main.rs"
-          ],
-          "success": [
-            "The hotkey summons and dismisses the drop-down on each platform, or the documented fallback works",
-            "Focus lands in the terminal on summon and returns sensibly on dismiss",
-            "Hide-on-blur behaves as the design doc specifies",
-            "The main window is unaffected"
-          ],
-          "tests": "Manual summon and dismiss on each platform; fallback path tested explicitly.",
-          "prerequisites": [
-            "1.5.1"
-          ],
-          "complexity": "High",
-          "agent": "pro_dev_agent",
-          "changelog": "Quake drop-down window with global hotkey summon and dismiss",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.5.3",
-          "title": "Multi-monitor placement",
-          "status": "pending",
-          "goal": "Implement the placement model the design doc chose: correct monitor targeting, correct edge per monitor, and defined behaviour when monitors are added, removed, or rearranged while the drop-down exists. Transform coordinates correctly per monitor — scale and offset errors here are the classic failure mode, so test on a mixed-DPI setup if one is available and say so if it is not.",
-          "touches": [
-            "src/quake/placement.rs"
-          ],
-          "success": [
-            "The drop-down appears on the monitor the design doc specifies",
-            "Adding or removing a monitor while running does not strand the window",
-            "Mixed-DPI coordinate handling is correct or the untested case is documented"
-          ],
-          "tests": "Manual test on multi-monitor; unit tests for placement math.",
-          "prerequisites": [
-            "1.5.2"
-          ],
-          "complexity": "High",
-          "agent": "pro_dev_agent",
-          "changelog": "Quake drop-down multi-monitor placement with hot-plug handling",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.5.4",
-          "title": "Drop-down animation",
-          "status": "pending",
-          "goal": "Animate the summon and dismiss transitions per the design doc using zoid_gpui's animation module. The window position must animate from the actual screen edge, including when the target monitor changed since the last summon. Keep the animation interruptible: a dismiss during a summon must not leave the window in an inconsistent position or state.",
-          "touches": [
-            "src/quake/animation.rs"
-          ],
-          "success": [
-            "Summon and dismiss animate from the correct edge with the specified easing",
-            "Interrupting an in-flight animation settles correctly",
-            "Animation is disabled cleanly when the user turns motion off"
-          ],
-          "tests": "Manual visual check; unit tests for the interpolation state machine.",
-          "prerequisites": [
-            "1.5.3"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Quake drop-down slide animation with interruptible transitions",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.6",
-      "title": "Figby integration",
-      "goal": "Build in Figby support. Figby is a Rust port of FIGlet 2.2.5 (the `figby` crate, v6.0.33, BSD-3-Clause, crate-type lib plus cdylib) that grew a full-screen ratatui TUI editor with a drawing palette, layers, a font editor, image import, and an animation timeline with keyframing, tweening, onion skinning, and GIF/APNG/ANSI export. It renders through ratatui, which is the same stack as Slurminal's planned console companion, so it lands there rather than in the GPUI surface. Stated intent: make the TUI flashy and extravagant while the terminal itself is still being built.",
-      "prerequisites": [
-        "1.5"
-      ],
-      "tasks": [
-        {
-          "id": "1.6.1",
-          "title": "Figby as a dependency and banner rendering",
-          "status": "pending",
-          "goal": "Add the `figby` crate from crates.io as a dependency of the console companion, verify it builds and links on Windows, macOS, and Linux, and use its render API to produce FIGfont banners from Slurminal (startup header, version splash). Use the library rather than shelling out to the binary: the crate exposes render_string over a parsed FIGfont, font loading from a font directory, and an output module with ANSI and plain-text emitters, so there is no reason to spawn a process. Figby is BSD-3-Clause, so ship its attribution in Slurminal's about screen and documentation alongside the other bundled licences — set up that attribution list here so it is not forgotten later. If the crate's Windows build has a problem, document it and say so rather than shipping a shell-out as a silent substitute.",
-          "touches": [
-            "crates/slurminal-console/Cargo.toml",
-            "crates/slurminal-console/src/figby/banner.rs",
-            "docs/figby.md",
-            "docs/licenses.md"
-          ],
-          "success": [
-            "The figby crate builds and links on all three platforms",
-            "A FIGfont banner renders into the console app from a bundled font",
-            "FIGfont and TOIlet font loading works from a font directory",
-            "Figby's BSD-3-Clause attribution ships in the about screen and docs/licenses.md",
-            "docs/figby.md records the pinned version and the chosen API surface"
-          ],
-          "tests": "Render a known string with a known font and assert the output lines; build on each platform.",
-          "prerequisites": [],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Figby crate integrated for FIGfont banner rendering in the console companion",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.6.2",
-          "title": "Figby animation playback in the console app",
-          "status": "pending",
-          "goal": "Use Figby's animation surface to play animated content in Slurminal's TUI: GIF playback through its fullscreen `--play` path and its animated-GIF import, scaled to the terminal, with loop and interrupt-on-key behaviour. Figby's README notes a current limitation where playback uses an approximate FPS rather than honouring a GIF's real per-frame timing, so verify the actual behaviour rather than trusting the description and record what is true. Playback must not fight the terminal for input: a playing animation is interruptible and restores the previous screen on exit.",
-          "touches": [
-            "crates/slurminal-console/src/figby/playback.rs"
-          ],
-          "success": [
-            "An animated GIF plays fullscreen in the terminal, scaled to fit",
-            "Playback is interruptible by keypress and restores the prior screen",
-            "Actual per-frame timing behaviour is tested and documented, including whether the README's stated limitation still holds",
-            "Playback does not corrupt terminal state on exit"
-          ],
-          "tests": "Manual playback of a real GIF; a test asserting screen restoration after interrupt.",
-          "prerequisites": [
-            "1.6.1"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Figby GIF animation playback in the console app with interruptible fullscreen mode",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.6.3",
-          "title": "Slurminal's own TUI decoration layer",
-          "status": "pending",
-          "goal": "The 'flashy and extravagant' part, in Slurminal rather than in Figby: banner headers, animated status flourishes, and startup art composed from Figby's render output and animation, wired into the console TUI. Keep Figby at arm's length — Slurminal uses its rendering and animation primitives; it does not adopt Figby's TUI editor or its template format as Slurminal's UI. Every decoration respects the terminal's real size, does not break on a narrow terminal, and is off by default for users who want a plain terminal.",
-          "touches": [
-            "crates/slurminal-console/src/ui/decoration.rs",
-            "crates/slurminal-core/src/config/"
-          ],
-          "success": [
-            "Decorative banners and flourishes render in the console TUI",
-            "Decoration degrades cleanly on a narrow or short terminal",
-            "Decoration can be disabled by configuration",
-            "Figby's editor and template format are not adopted as Slurminal's UI"
-          ],
-          "tests": "Render tests at several terminal sizes including a deliberately narrow one.",
-          "prerequisites": [
-            "1.6.2"
-          ],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "TUI decoration layer built on Figby render and animation primitives",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        },
-        {
-          "id": "1.6.4",
-          "title": "Upstream contributions to Figby",
-          "status": "pending",
-          "goal": "Slurminal's use of Figby will surface bugs and gaps — the per-frame timing limitation is a known candidate. Fix what is fixable upstream in Figby rather than working around it here, and contribute the fixes back. This task exists so that integration work does not quietly fork behaviour. Record what was sent upstream and what was worked around, with the reason for each.",
-          "touches": [
-            "docs/figby.md"
-          ],
-          "success": [
-            "Bugs found during integration are reported or fixed upstream where practical",
-            "Anything worked around locally is listed with the reason it could not be fixed upstream",
-            "docs/figby.md distinguishes upstream fixes from local workarounds"
-          ],
-          "tests": "Documentation task plus the upstream changes themselves.",
-          "prerequisites": [
-            "1.6.3"
-          ],
-          "complexity": "Low",
-          "agent": "basic_dev_agent",
-          "changelog": "Figby integration fixes contributed upstream with remaining workarounds documented",
-          "created_at": "2026-09-16T00:00:00Z",
-          "updated_at": "2026-09-16T00:00:00Z"
-        }
-      ]
-    },
-    {
-      "id": "1.7",
-      "title": "Ratatui console companion",
-      "goal": "A ratatui-based console application alongside the GUI, sharing the same configuration and terminal component. Treat it as a real second frontend, not a debugging utility.",
-      "prerequisites": [
-        "1.2"
-      ],
-      "tasks": [
-        {
-          "id": "1.7.1",
-          "title": "Shared core crate extraction",
-          "status": "pending",
-          "goal": "Extract the configuration model, colour schemes, and profile handling into a crate the GUI and the console app both depend on, so they cannot drift. Do this before writing the console app, not after: two frontends reading the same file with two copies of the parser is the failure this prevents. The GUI switches to the shared crate in the same task.",
-          "touches": [
-            "crates/slurminal-core/",
-            "src/",
+            "crates/paseo-protocol/",
             "Cargo.toml"
           ],
           "success": [
-            "Configuration, colour schemes, and profiles live in a shared crate",
-            "The GUI depends on it and no longer owns its own copies",
-            "The GUI's behaviour is unchanged after the extraction",
-            "All existing tests still pass"
+            "Envelope, handshake, status, and correlation types exist",
+            "Recorded Paseo daemon messages parse successfully",
+            "Unknown fields are tolerated and unknown enum values do not abort parsing",
+            "The crate has no dependency on the client or any UI"
           ],
-          "tests": "Full GUI test suite after extraction; manual launch to confirm parity.",
-          "prerequisites": [],
+          "tests": "Conformance tests parsing captured Paseo daemon traffic.",
+          "prerequisites": [
+            "2.0.2"
+          ],
           "complexity": "High",
           "agent": "pro_dev_agent",
-          "changelog": "Shared core crate for configuration, colour schemes, and profiles",
+          "changelog": "paseo-protocol crate with envelope and handshake types verified against real daemon traffic",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         },
         {
-          "id": "1.7.2",
-          "title": "Console app with an embedded terminal",
+          "id": "2.1.2",
+          "title": "WebSocket transport with handshake and liveness",
           "status": "pending",
-          "goal": "Build the ratatui console application: it renders a terminal using zoid-slurminal-component's VT wrapper and state model, drives a PTY, and handles input. Rendering is ratatui's job here, not GPUI's — the component's separation of state from surface is what makes this possible, so if the separation is insufficient that is a component bug to fix upstream, not to work around by reaching into internals.",
+          "goal": "Connect to a daemon over WebSocket, send hello, parse server_info, and maintain the connection. Implement the liveness contract Paseo expects: a ping every ten seconds beginning one interval after connecting, with all inbound activity renewing the lease. Reconnection is not part of this task beyond clean failure — 2.1.3 owns it. Binary frames are recognised and routed, with terminal decoding arriving in 2.2.",
           "touches": [
-            "crates/slurminal-console/",
-            "Cargo.toml"
+            "crates/paseo-client/src/transport/",
+            "crates/paseo-client/src/connection.rs"
           ],
           "success": [
-            "The console app renders an interactive terminal under ratatui",
-            "Input and resize work",
-            "It reads the same configuration file as the GUI",
-            "Any component changes needed are made upstream in zoid-slurminal-component"
+            "Slurminal connects to a running Paseo daemon and completes the handshake",
+            "Server info is parsed and exposed",
+            "The liveness ping is sent on schedule and the connection survives",
+            "Binary frames are recognised and routed without corrupting the text stream"
           ],
-          "tests": "Manual interactive session; a headless render test against a byte fixture.",
+          "tests": "Integration test against a real daemon on a dev port; unit test for the ping schedule.",
           "prerequisites": [
-            "1.7.1"
+            "2.1.1"
           ],
           "complexity": "High",
           "agent": "pro_dev_agent",
-          "changelog": "Ratatui console companion with an embedded terminal",
+          "changelog": "WebSocket transport with handshake, capability advertisement, and liveness ping",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         },
         {
-          "id": "1.7.3",
-          "title": "Multiplexing and session detach",
+          "id": "2.1.3",
+          "title": "Request correlation, subscriptions, and reconnect",
           "status": "pending",
-          "goal": "Give the console app server and client modes so a session can be detached and reattached — the thing a console companion is actually for. Decide and document the transport and whether this is a new protocol or a reuse of the PTY layer. Security matters here: a listening socket that runs shells is a real exposure, so it authenticates and binds locally by default rather than trusting the network.",
+          "goal": "The request/response engine: correlate replies by request id with a timeout, surface rpc_error as a typed failure, and manage subscriptions with the ownership model the daemon expects. Reconnect must re-establish subscriptions and restore state from authoritative fetches rather than assuming the stream continued — Paseo's correctness model is that live streams are for immediacy and fetches are authoritative. Bear in mind the daemon's outbound high-water mark and its 8 MiB cutoff when buffering.",
           "touches": [
-            "crates/slurminal-console/src/session/",
-            "docs/console.md"
+            "crates/paseo-client/src/rpc.rs",
+            "crates/paseo-client/src/subscriptions.rs",
+            "crates/paseo-client/src/reconnect.rs"
           ],
           "success": [
-            "A session survives client detach and reattach",
-            "The default binding is local-only and requires authentication to widen",
-            "The transport and its threat model are documented",
-            "Multiple clients can attach to one session or that limitation is stated"
+            "Requests correlate to responses and time out with a typed error",
+            "rpc_error surfaces as a typed failure, not a parse error",
+            "Subscriptions survive reconnect with the state re-fetched authoritatively",
+            "Buffer growth is bounded and cannot trip the daemon's cutoff"
           ],
-          "tests": "Manual detach and reattach; a security test asserting the default bind and auth requirement.",
+          "tests": "Unit tests with a scripted fake daemon covering timeout, error, and reconnect paths.",
           "prerequisites": [
-            "1.7.2"
+            "2.1.2"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Request correlation, subscription ownership, and authoritative reconnect",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.1.4",
+          "title": "Direct, relay, and remote connection targets",
+          "status": "pending",
+          "goal": "Support the connection targets Paseo users actually have: a direct host and port, the end-to-end encrypted relay, and SSH tunnelling to an already-running daemon. The relay cryptography is Curve25519 plus NaCl box with the daemon's public key transferred at pairing — the relay implementation is in packages/relay and must be matched, not reinvented. SSH only tunnels to a daemon someone else started. Store and manage multiple saved hosts.",
+          "touches": [
+            "crates/paseo-client/src/relay/",
+            "crates/paseo-client/src/hosts.rs",
+            "src/hosts/"
+          ],
+          "success": [
+            "A direct connection works",
+            "A relay connection works against a paired daemon",
+            "An SSH tunnel to a running daemon works",
+            "Multiple hosts can be saved, selected, and switched between"
+          ],
+          "tests": "Integration tests per transport against real daemons; a relay pairing test.",
+          "prerequisites": [
+            "2.1.3"
           ],
           "complexity": "Very High",
           "agent": "pro_dev_agent",
-          "security_notes": "A remote-attachable shell is the highest-risk feature in this project. Bind local-only by default, require explicit configuration to widen, and authenticate every connection. Document the threat model before implementing.",
-          "changelog": "Console session detach and reattach with a local-only default binding",
+          "security_notes": "The relay path carries the daemon's credentials. Match packages/relay exactly rather than approximating; a subtly wrong implementation is either broken or insecure. SSH tunnelling must not store private keys.",
+          "changelog": "Direct, relay, and SSH connection targets with saved host management",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         }
       ]
     },
     {
-      "id": "1.8",
-      "title": "Packaging and release",
-      "goal": "Slurminal installs like a real application on all three platforms.",
+      "id": "2.2",
+      "title": "Terminal over the Paseo protocol",
+      "goal": "Slurminal runs Paseo terminals using the Zoid terminal component, which is the first proof that the component works for a real second consumer.",
       "prerequisites": [
-        "1.6",
-        "1.7"
+        "2.1"
+      ],
+      "tasks": [
+        {
+          "id": "2.2.1",
+          "title": "Terminal binary frame codec",
+          "status": "pending",
+          "goal": "Decode and encode Paseo's binary terminal frames: the opcode and slot layout, output, input, resize, and snapshot. Paseo serves a snapshot with optional per-row wrap flags gated behind a capability, so advertise that capability and honour the flags rather than assuming a strict schema. Encode resize and input correctly, since Paseo's terminal sizing is last-interacting-client-wins and a client that claims size carelessly steals the PTY from someone else.",
+          "touches": [
+            "crates/paseo-protocol/src/binary/terminal.rs",
+            "crates/paseo-client/src/terminal/"
+          ],
+          "success": [
+            "Output frames decode into terminal input for the Zoid component",
+            "Input and resize frames encode correctly",
+            "Snapshots restore content and wrap flags reflow on resize",
+            "Resize is claimed only on genuine viewport change, not on focus or render",
+            "Round-trip tests cover every opcode"
+          ],
+          "tests": "Round-trip codec tests; integration test replaying a recorded terminal session.",
+          "prerequisites": [
+            "2.1.3"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Paseo terminal binary frame codec with snapshot restore and correct resize ownership",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.2.2",
+          "title": "Terminal pane backed by the Zoid component",
+          "status": "pending",
+          "goal": "A terminal pane in Slurminal that consumes the Zoid terminal component and drives it from Paseo terminal frames instead of a local PTY. The component's PTY layer is not used here — Paseo owns the process — so this is a real test of whether the component's state and surface split is clean enough for a remote byte source. Any change needed goes upstream into zoid-terminal, not into a Slurminal-local fork.",
+          "touches": [
+            "src/panels/terminal.rs",
+            "crates/paseo-client/src/terminal/"
+          ],
+          "success": [
+            "An interactive Paseo terminal runs in Slurminal",
+            "The pane works with a remote byte source and no local PTY",
+            "Any component changes are contributed upstream",
+            "Resize and input behave per the frame codec rules"
+          ],
+          "tests": "Manual interactive test against a real daemon.",
+          "prerequisites": [
+            "2.2.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Interactive Paseo terminal pane in Slurminal backed by the Zoid terminal component",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.2.3",
+          "title": "Workspace terminal lifecycle and restore",
+          "status": "pending",
+          "goal": "Terminals belong to workspaces and outlive a client session. Handle creating a terminal, attaching to an existing one with correct restore, keeping a session alive across pane navigation, and detaching without killing the process. Paseo keeps the terminal alive server-side, so Slurminal must not assume it owns the lifetime — closing the pane is not closing the process.",
+          "touches": [
+            "src/panels/terminal-lifecycle.rs",
+            "crates/paseo-client/src/terminal/"
+          ],
+          "success": [
+            "Terminals attach to and detach from workspaces correctly",
+            "A detached terminal survives and reattaches with restored content",
+            "Closing a pane does not kill the server-side process",
+            "Navigating away and back preserves scrollback"
+          ],
+          "tests": "Integration test covering attach, detach, reattach, and content restore.",
+          "prerequisites": [
+            "2.2.2"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Workspace terminal lifecycle with detach, reattach, and content restore",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.3",
+      "title": "Directory replica",
+      "goal": "Projects, workspaces, and agents replicate correctly with their sequenced cursor model, so the UI has data to show and reconnects do not lose state.",
+      "prerequisites": [
+        "2.1"
+      ],
+      "tasks": [
+        {
+          "id": "2.3.1",
+          "title": "Directory replica model and cursor reconciliation",
+          "status": "pending",
+          "goal": "Implement the directory replica: three entity types (project, workspace, agent) with independent monotonic sequences sharing one daemon generation, latest projection per entity, tombstones, and full-snapshot fallback when a cursor is missing, expired, or from a previous generation. This mirrors packages/app's runtime/directory-sync and replica-cache, but as a plain Rust model with no React in the way. The daemon retains no event log, so the client must not assume one.",
+          "touches": [
+            "crates/paseo-client/src/directory/",
+            "src/runtime/directory.rs"
+          ],
+          "success": [
+            "Entities replicate from a full snapshot then advance by sequence",
+            "A stale or foreign-generation cursor triggers a correct full resync",
+            "Tombstones remove entities and a re-appearing entity is handled",
+            "The model has no UI dependencies and is unit-testable"
+          ],
+          "tests": "Unit tests with a scripted daemon covering snapshot, delta, tombstone, stale cursor, and generation change.",
+          "prerequisites": [
+            "2.1.3"
+          ],
+          "complexity": "Very High",
+          "agent": "pro_dev_agent",
+          "changelog": "Directory replica with sequenced cursors, tombstones, and generation-aware resync",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.3.2",
+          "title": "GPUI binding for the directory replica",
+          "status": "pending",
+          "goal": "Expose the replica to GPUI views so lists react to changes without copying the store into component state. Paseo's app enforces that its replica cache never observes or mutates the session store, and that accepted cache rows satisfy the same readiness projection as network rows — keep those invariants in the Rust version. Late cache reads must not overwrite state already advanced by live or authoritative data.",
+          "touches": [
+            "src/runtime/directory-binding.rs",
+            "src/panels/"
+          ],
+          "success": [
+            "Views observe replica changes without duplicating state",
+            "A late cache read cannot regress newer live data",
+            "The binding is testable without rendering"
+          ],
+          "tests": "Unit tests for ordering guards; #[gpui::test] for a subscribed view.",
+          "prerequisites": [
+            "2.3.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "GPUI binding over the directory replica with ordering guards",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.3.3",
+          "title": "Local persistence of the replica",
+          "status": "pending",
+          "goal": "Persist accepted replica commits locally so a restart paints immediately and reconciles over the network afterwards. Directory rows and their checkpoint commit in one storage transaction, matching Paseo's rule. Startup and connection must not create demand or install replicas on their own — demand is what drives loading. Choose and document the storage engine rather than defaulting to an embedded database without thinking about it.",
+          "touches": [
+            "crates/paseo-client/src/directory/storage.rs",
+            "docs/storage.md"
+          ],
+          "success": [
+            "Replica state survives a restart and paints before the network responds",
+            "Rows and checkpoint commit atomically",
+            "Startup installs no replicas without demand",
+            "The storage choice is documented with reasons"
+          ],
+          "tests": "Unit tests for atomic commit and crash-recovery behaviour.",
+          "prerequisites": [
+            "2.3.2"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Persistent directory replica with transactional commits and demand-driven loading",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.4",
+      "title": "Agent timeline",
+      "goal": "Agents stream their output into Slurminal and render it. Timeline correctness is subtle, so the sync rules are implemented deliberately rather than approximated.",
+      "prerequisites": [
+        "2.3"
+      ],
+      "tasks": [
+        {
+          "id": "2.4.1",
+          "title": "Timeline model and sync rules",
+          "status": "pending",
+          "goal": "Implement the timeline model: epochs, append-only sequence allocation, dedup by sequence, gap detection, compaction, and replacement invalidation. Paseo's rule is that live streams are for immediacy while fetch_agent_timeline_request is authoritative, and catch-up is paged but complete — implement that, do not shortcut it. Turn lifecycle events carry a turn id and snapshots carry an active turn identity, so an old daemon's status is normalised once at the directory boundary rather than maintaining a second activity model.",
+          "touches": [
+            "crates/paseo-client/src/timeline/",
+            "src/runtime/timeline.rs"
+          ],
+          "success": [
+            "Events append with correct sequence and epoch handling",
+            "Gap detection triggers a paged catch-up that completes",
+            "Duplicate and out-of-order events are handled without duplication or loss",
+            "Compaction and replacement invalidation are implemented",
+            "Active turn identity is normalised at the directory boundary, not duplicated"
+          ],
+          "tests": "Extensive unit tests with scripted event streams, including gaps and replays.",
+          "prerequisites": [
+            "2.3.1"
+          ],
+          "complexity": "Very High",
+          "agent": "pro_dev_agent",
+          "changelog": "Agent timeline with epochs, gap detection, paged catch-up, and replacement invalidation",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.4.2",
+          "title": "Timeline rendering for streaming output",
+          "status": "pending",
+          "goal": "Render the timeline: assistant messages with markdown, reasoning, tool calls, and notifications. Tool calls normalise to a single display type, so implement the normalisation rather than rendering provider-specific shapes. Paseo coalesces and paces assistant text because arrival comes in lumps — the same smoothing applies here and is worth implementing early, since retrofitting it later means reworking the render path.",
+          "touches": [
+            "src/panels/timeline/",
+            "src/timeline/render.rs"
+          ],
+          "success": [
+            "Messages, reasoning, and tool calls render correctly",
+            "Streaming text is paced so lumps do not appear as jumps",
+            "Tool calls render through one normalised display path",
+            "Markdown renders with syntax highlighting where the Zoid components support it"
+          ],
+          "tests": "#[gpui::test] rendering assertions against fixture timelines; manual streaming check.",
+          "prerequisites": [
+            "2.4.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Timeline rendering with paced streaming, normalised tool calls, and markdown",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.4.3",
+          "title": "Agent lifecycle, streaming status, and attention",
+          "status": "pending",
+          "goal": "Agent state as Paseo models it: the lifecycle states and their transitions, streaming status, attention-required notifications, and subagent relationships including provider-owned child descriptors. Model the lifecycle as a Rust enum with explicit transitions so an invalid transition is unrepresentable rather than a rendered surprise. Subagent timelines are capability-gated on the daemon side, so advertise the capability to receive them.",
+          "touches": [
+            "crates/paseo-client/src/agent/",
+            "src/panels/agent-status.rs"
+          ],
+          "success": [
+            "Lifecycle states and transitions are modelled as an enum with legal transitions only",
+            "Status and attention updates render correctly",
+            "Subagent descriptors and timelines are received and associated with their parent",
+            "An unknown status from a newer daemon degrades rather than panicking"
+          ],
+          "tests": "Unit tests for transition legality; integration test for subagent association.",
+          "prerequisites": [
+            "2.4.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Agent lifecycle, status streaming, attention, and subagent association",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.5",
+      "title": "Core UI: shell, sidebar, workspace, composer",
+      "goal": "Slurminal becomes usable: a window with a sidebar, workspaces, a timeline, a composer that can create and drive agents, and permission prompts.",
+      "prerequisites": [
+        "2.4"
+      ],
+      "tasks": [
+        {
+          "id": "2.5.1",
+          "title": "Application shell, sidebar, and navigation",
+          "status": "pending",
+          "goal": "The window shell: sidebar with the project and workspace tree from the directory replica, navigation between workspaces and agents, and the panel layout. The menubar template already provides the app menu and settings integration — build on it rather than replacing it. Start from Paseo's glossary for terminology and its design system for presentation, and take the Zoid design system where the two do not conflict.",
+          "touches": [
+            "src/shell/",
+            "src/panels/sidebar.rs",
+            "src/ui/zml_layout.rs"
+          ],
+          "success": [
+            "The sidebar shows projects, workspaces, and agents from the replica",
+            "Navigation selects a workspace and its agents",
+            "Panel layout is resizable and persisted",
+            "Terminology matches the Paseo glossary"
+          ],
+          "tests": "#[gpui::test] for navigation state; manual inspection.",
+          "prerequisites": [
+            "2.3.2",
+            "2.4.3"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Application shell with sidebar, workspace navigation, and persisted panel layout",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.5.2",
+          "title": "Composer: create agents and send prompts",
+          "status": "pending",
+          "goal": "The composer: provider and model selection from the daemon's provider catalog, prompt entry with attachments, and submit. Creation is owned by the daemon across socket lifetimes, so implement it against that model — a request can carry its initial prompt, reconnect resubscribes to the operation, and retries join active work rather than duplicating it. Explicitly requested ids or receipts that an older host cannot honour produce an unsupported error rather than a silent fallback.",
+          "touches": [
+            "src/composer/",
+            "crates/paseo-client/src/creation.rs"
+          ],
+          "success": [
+            "An agent can be created with a prompt and a chosen provider and model",
+            "Reconnect during creation joins the existing operation instead of duplicating it",
+            "An unsupported explicit id against an older host errors clearly",
+            "The provider catalog is fetched and rendered from the daemon"
+          ],
+          "tests": "Integration tests for create, reconnect-during-create, and the unsupported-id path.",
+          "prerequisites": [
+            "2.5.1"
+          ],
+          "complexity": "Very High",
+          "agent": "pro_dev_agent",
+          "changelog": "Composer with provider selection, prompt submission, and daemon-owned creation handling",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.5.3",
+          "title": "Permission requests and approvals",
+          "status": "pending",
+          "goal": "The permission flow: receive a permission request, present it with enough context to decide, and send the response. Permission prompts are the point where a user can cause the most damage by approving carelessly, so the request's full detail must be visible and the default action must not be approval. Handle a request that resolves while the prompt is open, and a prompt that outlives its request.",
+          "touches": [
+            "src/panels/permission.rs",
+            "crates/paseo-client/src/permissions.rs"
+          ],
+          "success": [
+            "Permission requests render with full detail of what is being requested",
+            "Approval is never the default action",
+            "A request resolving while its prompt is open is handled without a stale prompt",
+            "Denial is as easy as approval"
+          ],
+          "tests": "Integration tests for the request, resolve-early, and timeout paths.",
+          "prerequisites": [
+            "2.5.2"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "security_notes": "This surface authorises tool calls that can modify the filesystem and run commands. Never default to approve, always show the full request, and never batch-approve without the user seeing each item.",
+          "changelog": "Permission request and approval flow with full request detail and safe defaults",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.6",
+      "title": "Workspace surfaces",
+      "goal": "The panels that make Slurminal a working environment rather than an agent viewer: files, git, and search.",
+      "prerequisites": [
+        "2.5"
+      ],
+      "tasks": [
+        {
+          "id": "2.6.1",
+          "title": "File explorer and file preview",
+          "status": "pending",
+          "goal": "Browse a workspace's files through the daemon's directory suggestions capability and preview file contents. Paseo's rule is that directory search is one daemon-owned capability the client must not reimplement or re-filter: a request without a working directory searches the host home for absolute project paths, and one with it returns relative entries. Implement the client side of that contract rather than parsing query syntax locally.",
+          "touches": [
+            "src/panels/file-explorer.rs",
+            "crates/paseo-client/src/files.rs"
+          ],
+          "success": [
+            "The explorer lists a workspace's files",
+            "File preview renders text with correct encoding handling",
+            "Directory search goes through the daemon capability with no local re-filtering",
+            "Large files are handled without hanging the UI"
+          ],
+          "tests": "Integration tests against a real daemon; a large-file test.",
+          "prerequisites": [
+            "2.5.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "File explorer and preview backed by the daemon's directory capability",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.6.2",
+          "title": "Git status, diff, and checkout operations",
+          "status": "pending",
+          "goal": "Git status and diff for a workspace, plus the checkout operations the daemon exposes: switch branch, commit, push, pull, merge, and the change-request operations. Respect Paseo's sharing model, which is easy to get wrong: git state is directory-backed and keyed by host and working directory, never by workspace id, so two workspaces on one folder share their git state. Draft comments and comparison state are workspace-owned and must not leak between workspaces on the same folder.",
+          "touches": [
+            "src/panels/git/",
+            "crates/paseo-client/src/checkout.rs"
+          ],
+          "success": [
+            "Status and diff render and update live",
+            "Two workspaces on one folder show identical git state",
+            "Workspace-owned draft state does not leak between workspaces",
+            "Checkout operations complete and their results are surfaced"
+          ],
+          "tests": "Integration tests covering the two-workspaces-one-folder case explicitly.",
+          "prerequisites": [
+            "2.5.1"
+          ],
+          "complexity": "Very High",
+          "agent": "pro_dev_agent",
+          "changelog": "Git status, diff, and checkout operations with correct directory-versus-workspace state sharing",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.6.3",
+          "title": "Workspace creation and worktrees",
+          "status": "pending",
+          "goal": "Create workspaces, including the git worktree flow, and archive them. Workspace readiness is published before provider startup, so a created workspace can be navigated to before its agent is ready — the client must render that state rather than waiting. Match Paseo on whether a workspace request may carry its initial agent and prompt.",
+          "touches": [
+            "src/screens/new-workspace.rs",
+            "crates/paseo-client/src/workspaces.rs"
+          ],
+          "success": [
+            "Workspaces can be created, including as worktrees",
+            "A workspace is navigable before its agent is ready, with the pending state shown",
+            "Archiving works and removes the workspace from the active list",
+            "Creation reconnects correctly if the socket drops mid-operation"
+          ],
+          "tests": "Integration tests including a mid-creation disconnect.",
+          "prerequisites": [
+            "2.5.2"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Workspace and worktree creation with pre-readiness navigation and reconnect safety",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.7",
+      "title": "Settings, providers, and remaining surfaces",
+      "goal": "The surfaces a daily-use client needs that are not the core loop: settings, provider configuration, schedules, and labels.",
+      "prerequisites": [
+        "2.5"
+      ],
+      "tasks": [
+        {
+          "id": "2.7.1",
+          "title": "Settings window and daemon configuration",
+          "status": "pending",
+          "goal": "A settings window covering host management, daemon configuration, and appearance. Daemon config expresses desired state while the daemon publishes its actual bound endpoint separately, so the UI must not present a config value as a live endpoint. Follow the menubar template's settings pattern and the Zoid design system.",
+          "touches": [
+            "src/settings/",
+            "crates/paseo-client/src/config.rs"
+          ],
+          "success": [
+            "Hosts can be added, edited, and removed",
+            "Daemon configuration is readable and writable",
+            "Desired config is never presented as a live endpoint",
+            "Appearance settings apply live"
+          ],
+          "tests": "Integration tests for config read and write; manual walkthrough.",
+          "prerequisites": [
+            "2.1.4"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Settings window for hosts, daemon configuration, and appearance",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.7.2",
+          "title": "Provider and model configuration",
+          "status": "pending",
+          "goal": "Browse the daemon's provider and model catalog, see per-provider state, and manage custom provider configuration. Provider catalogs arrive with shared thinking sets in a compact encoding and may include references, so decode both the compact and reference forms rather than assuming one. Providers handle their own authentication, so this surface configures them and never handles credentials itself.",
+          "touches": [
+            "src/settings/providers.rs",
+            "crates/paseo-client/src/providers.rs"
+          ],
+          "success": [
+            "The provider and model catalog is fetched and rendered",
+            "Compact and reference snapshot encodings both decode",
+            "Custom provider configuration can be edited",
+            "No credential material is read, stored, or logged"
+          ],
+          "tests": "Fixture tests for both snapshot encodings.",
+          "prerequisites": [
+            "2.7.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Provider and model catalog with compact and reference snapshot decoding",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.7.3",
+          "title": "Schedules and workspace labels",
+          "status": "pending",
+          "goal": "Scheduled agents: create, list, inspect, pause, resume, and view logs. Plus workspace labels, which have their own explicitly subscribed sequence separate from the workspace directory sequence — a list request both fetches and grants live updates for that session, and an idle or unsubscribed session receives no label traffic. Implement that subscription model rather than polling.",
+          "touches": [
+            "src/panels/schedules.rs",
+            "src/panels/labels.rs",
+            "crates/paseo-client/src/schedules.rs"
+          ],
+          "success": [
+            "Schedules can be created, listed, paused, resumed, and their logs viewed",
+            "Label catalogs subscribe explicitly and receive no traffic when idle",
+            "Label assignments follow the workspace directory sequence, not the label sequence"
+          ],
+          "tests": "Integration tests for schedule lifecycle and label subscription behaviour.",
+          "prerequisites": [
+            "2.7.1"
+          ],
+          "complexity": "Medium",
+          "agent": "mid_dev_agent",
+          "changelog": "Scheduled agent management and explicitly subscribed workspace labels",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "2.8",
+      "title": "Parity hardening and release",
+      "goal": "Close the gap against a real Paseo daemon, prove it with drift and scale tests, and ship.",
+      "prerequisites": [
+        "2.6",
+        "2.7"
       ],
       "release": {
         "version": "0.1.0",
-        "notes": "First Slurminal release: a GPUI terminal built on zoid-slurminal-component.",
+        "notes": "First Slurminal release: a Rust and GPUI Paseo client speaking the Paseo wire protocol.",
         "changelog_entries": []
       },
       "tasks": [
         {
-          "id": "1.8.1",
-          "title": "Icons, bundles, and installers",
+          "id": "2.8.1",
+          "title": "Version drift and capability negotiation hardening",
           "status": "pending",
-          "goal": "Ship platform packages: .app bundle and notarisation notes for macOS, MSI or an installer for Windows, and a package for Linux. Reuse Zoid's packaging feature fragments and app-icon set where they fit rather than inventing a second pipeline. The libghostty build dependency has to be handled — either statically linked into the binary or shipped alongside — so a user installs nothing extra.",
+          "goal": "Make version skew a tested property rather than a hope. Slurminal must work against an older daemon missing capabilities it would like, and against a newer daemon emitting messages it does not know. Build a test matrix over recorded traffic from multiple daemon versions and assert that Slurminal degrades cleanly in each case, including telling the user to update the host where a required feature is genuinely absent.",
           "touches": [
-            "packaging/",
-            "app-icons/",
-            "Cargo.toml"
+            "tests/drift/",
+            "docs/compatibility.md"
           ],
           "success": [
-            "An installable package exists for each platform",
-            "Installing requires no separate libghostty installation",
-            "Icons and metadata are correct per platform",
-            "The packaging steps are reproducible from the repository"
+            "Recorded traffic from multiple daemon versions parses without panic",
+            "A missing capability produces a clear user-facing message, not a broken view",
+            "An unknown message type is ignored safely",
+            "The matrix and its recorded fixtures are in the repository"
           ],
-          "tests": "Install the built package on each platform and launch it.",
-          "prerequisites": [],
-          "complexity": "Medium",
-          "agent": "mid_dev_agent",
-          "changelog": "Platform installers for macOS, Windows, and Linux",
+          "tests": "The drift test matrix itself.",
+          "prerequisites": [
+            "2.5.3"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Version drift test matrix and capability negotiation hardening",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         },
         {
-          "id": "1.8.2",
-          "title": "Performance benchmark and baseline",
+          "id": "2.8.2",
+          "title": "Hundred-agent scale and performance pass",
           "status": "pending",
-          "goal": "Establish a repeatable benchmark for throughput-heavy output, interactive latency, and startup time, and record a baseline. A terminal that is slow at dumping a large file is a terminal people stop using, and without a baseline there is no way to know later whether an animation or graphics feature cost throughput. Wire it into CI so a regression is visible.",
+          "goal": "Slurminal's reason to exist is running many agents at once, so prove it does. Drive a daemon with a large number of agents and workspaces and measure UI responsiveness, memory, and replica reconciliation cost. Find and fix the pathological cases — the usual ones are per-agent subscriptions, unbounded timeline retention, and re-rendering lists on every sequence advance. Record the numbers and wire a regression check into CI.",
           "touches": [
             "benches/",
-            ".github/workflows/"
+            ".github/workflows/",
+            "crates/paseo-client/src/"
           ],
           "success": [
-            "Output throughput, input latency, and startup time are measured",
-            "A baseline is recorded in the repository",
-            "CI reports a regression against the baseline"
+            "A large agent and workspace population stays responsive",
+            "Memory does not grow without bound as timelines advance",
+            "Bottlenecks found are fixed and the fix is described",
+            "Numbers are recorded and CI checks for regressions"
           ],
-          "tests": "Run the benchmark suite; confirm CI surfaces the numbers.",
+          "tests": "The scale benchmark itself, run against a daemon under load.",
           "prerequisites": [
-            "1.6.3"
+            "2.8.1"
+          ],
+          "complexity": "High",
+          "agent": "pro_dev_agent",
+          "changelog": "Large-scale performance pass with recorded numbers and a CI regression check",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.8.3",
+          "title": "Packaging and release",
+          "status": "pending",
+          "goal": "Ship platform packages for macOS, Windows, and Linux, bundling nothing the user must install separately. Reuse Zoid's packaging fragments where they fit. Document what Slurminal is and is not at this version, including that it targets Paseo protocol compatibility and where that ends.",
+          "touches": [
+            "packaging/",
+            "app-icons/",
+            "README.md"
+          ],
+          "success": [
+            "Installable packages exist for all three platforms",
+            "Installing requires no separate daemon or runtime install",
+            "The README states the compatibility target and its limits",
+            "Known gaps against Paseo are listed rather than omitted"
+          ],
+          "tests": "Install each package and connect to a real daemon.",
+          "prerequisites": [
+            "2.8.2"
           ],
           "complexity": "Medium",
           "agent": "mid_dev_agent",
-          "changelog": "Terminal performance benchmarks with a recorded baseline and CI regression check",
+          "changelog": "Platform installers and release documentation",
+          "created_at": "2026-09-16T00:00:00Z",
+          "updated_at": "2026-09-16T00:00:00Z"
+        },
+        {
+          "id": "2.8.4",
+          "title": "Divergence review",
+          "status": "pending",
+          "goal": "Review where Slurminal diverged from Paseo during v1 and decide what to do about each case: keep the divergence, upstream it, or revert to match. The stance was compatibility now and divergence later, so this task is where 'later' gets a date. Produce a document listing every divergence with a decision and a reason, and use it to seed the v2 plan.",
+          "touches": [
+            "docs/divergence.md",
+            "docs/todo-v2.json"
+          ],
+          "success": [
+            "Every divergence is listed with a decision and reason",
+            "Items to upstream are separated from items to keep",
+            "The outcome seeds the v2 plan's scope"
+          ],
+          "tests": "Documentation task.",
+          "prerequisites": [
+            "2.8.3"
+          ],
+          "complexity": "Low",
+          "agent": "basic_dev_agent",
+          "changelog": "Divergence review from Paseo with per-item decisions for v2",
           "created_at": "2026-09-16T00:00:00Z",
           "updated_at": "2026-09-16T00:00:00Z"
         }
