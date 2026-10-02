@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-gpui-kit = { version = "0.6" }
+gpui-kit = { git = "https://github.com/ClawfficeOrg/gpui-kit", branch = "zoid/0.6.6" }
 gpui = { package = "gpui-pre", version = "0.3" }
 regex = "1.11"
 unicode-segmentation = "1.12.0"
